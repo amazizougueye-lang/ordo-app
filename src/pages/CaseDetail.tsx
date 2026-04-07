@@ -1,0 +1,236 @@
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
+import { AppLayout } from '../components/AppLayout'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import type { Case, Document, CaseStatus } from '../types'
+import { toast } from 'sonner'
+import { format } from 'date-fns'
+import { fr } from 'date-fns/locale'
+import {
+  ArrowLeft, Pin, FileText, Calendar, Trash2,
+  Loader2, CheckCircle, ChevronDown
+} from 'lucide-react'
+
+export default function CaseDetail() {
+  const { id } = useParams<{ id: string }>()
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const [c, setCase] = useState<Case | null>(null)
+  const [docs, setDocs] = useState<Document[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  // Editable fields
+  const [name, setName] = useState('')
+  const [clientName, setClientName] = useState('')
+  const [status, setStatus] = useState<CaseStatus>('stable')
+  const [deadline, setDeadline] = useState('')
+
+  useEffect(() => {
+    if (!id || !user) return
+    Promise.all([
+      supabase.from('cases').select('*').eq('id', id).maybeSingle(),
+      supabase.from('documents').select('*').eq('case_id', id).order('created_at', { ascending: false }),
+    ]).then(([{ data: caseData }, { data: docsData }]) => {
+      if (caseData) {
+        const d = caseData as Case
+        setCase(d)
+        setName(d.name)
+        setClientName(d.client_name)
+        setStatus(d.status)
+        setDeadline(d.deadline?.slice(0, 10) || '')
+      }
+      setDocs((docsData as Document[]) || [])
+      setLoading(false)
+    })
+  }, [id, user])
+
+  const handleSave = async () => {
+    if (!c) return
+    setSaving(true)
+    const { error } = await supabase
+      .from('cases')
+      .update({
+        name,
+        client_name: clientName,
+        status,
+        deadline: deadline || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', c.id)
+    if (error) toast.error('Erreur lors de la sauvegarde')
+    else { toast.success('Dossier mis à jour'); setCase(prev => prev ? { ...prev, name, client_name: clientName, status, deadline } : prev) }
+    setSaving(false)
+  }
+
+  const togglePin = async () => {
+    if (!c) return
+    const updated = !c.pinned
+    await supabase.from('cases').update({ pinned: updated }).eq('id', c.id)
+    setCase(prev => prev ? { ...prev, pinned: updated } : prev)
+    toast.success(updated ? 'Dossier épinglé' : 'Dossier désépinglé')
+  }
+
+  const deleteCase = async () => {
+    if (!c || !confirm('Supprimer ce dossier et tous ses documents ?')) return
+    await supabase.from('documents').delete().eq('case_id', c.id)
+    await supabase.from('cases').delete().eq('id', c.id)
+    toast.success('Dossier supprimé')
+    navigate('/dashboard')
+  }
+
+  if (loading) return (
+    <AppLayout>
+      <div className="flex items-center justify-center h-full" style={{ color: '#94A3B8', fontSize: 13 }}>Chargement…</div>
+    </AppLayout>
+  )
+
+  if (!c) return (
+    <AppLayout>
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <p className="text-[14px] mb-4" style={{ color: '#94A3B8' }}>Dossier introuvable</p>
+          <Link to="/dashboard" className="btn-primary">Retour</Link>
+        </div>
+      </div>
+    </AppLayout>
+  )
+
+  return (
+    <AppLayout>
+      <div className="max-w-2xl mx-auto px-6 py-8">
+        {/* Back + actions */}
+        <div className="flex items-center justify-between mb-6">
+          <Link to="/dashboard" className="btn-ghost gap-1.5 -ml-2">
+            <ArrowLeft size={14} /> Dossiers
+          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={togglePin}
+              className="btn-ghost gap-1.5"
+              title={c.pinned ? 'Désépingler' : 'Épingler'}
+            >
+              <Pin size={14} fill={c.pinned ? '#1E293B' : 'none'} />
+              {c.pinned ? 'Épinglé' : 'Épingler'}
+            </button>
+            <button onClick={deleteCase} className="btn-ghost" style={{ color: '#DC2626' }}>
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Title */}
+        <div className="mb-7">
+          <StatusBadge status={c.status} />
+          <h1
+            className="text-[24px] font-semibold mt-2"
+            style={{ color: '#0F172A', letterSpacing: '-0.02em' }}
+          >
+            {c.name}
+          </h1>
+          <p className="text-[13px] mt-1" style={{ color: '#94A3B8' }}>{c.client_name}</p>
+        </div>
+
+        {/* Summary */}
+        {c.summary && (
+          <div
+            className="rounded-lg px-5 py-4 mb-6"
+            style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}
+          >
+            <p className="section-label mb-2">Résumé IA</p>
+            <p className="text-[13px] leading-relaxed" style={{ color: '#475569' }}>{c.summary}</p>
+          </div>
+        )}
+
+        {/* Edit form */}
+        <div className="card p-5 mb-6">
+          <p className="section-label mb-4">Informations</p>
+          <div className="space-y-4">
+            <div>
+              <label className="field-label">Nom du dossier</label>
+              <input className="input-field" value={name} onChange={e => setName(e.target.value)} />
+            </div>
+            <div>
+              <label className="field-label">Client</label>
+              <input className="input-field" value={clientName} onChange={e => setClientName(e.target.value)} />
+            </div>
+            <div>
+              <label className="field-label">Statut</label>
+              <div className="relative">
+                <select
+                  className="input-field appearance-none pr-8"
+                  value={status}
+                  onChange={e => setStatus(e.target.value as CaseStatus)}
+                >
+                  <option value="stable">Stable</option>
+                  <option value="monitor">À surveiller</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#94A3B8' }} />
+              </div>
+            </div>
+            <div>
+              <label className="field-label">Délai principal</label>
+              <input
+                type="date"
+                className="input-field"
+                value={deadline}
+                onChange={e => setDeadline(e.target.value)}
+              />
+            </div>
+            <button onClick={handleSave} disabled={saving} className="btn-primary gap-2">
+              {saving
+                ? <><Loader2 size={14} className="animate-spin" /> Enregistrement…</>
+                : <><CheckCircle size={14} /> Sauvegarder</>
+              }
+            </button>
+          </div>
+        </div>
+
+        {/* Documents */}
+        <div>
+          <p className="section-label mb-3">Documents ({docs.length})</p>
+          {docs.length === 0 ? (
+            <div
+              className="rounded-lg px-5 py-8 text-center"
+              style={{ border: '1.5px dashed #E2E8F0' }}
+            >
+              <p className="text-[13px]" style={{ color: '#94A3B8' }}>Aucun document attaché</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {docs.map(doc => (
+                <div
+                  key={doc.id}
+                  className="flex items-start gap-4 px-4 py-3.5 rounded-lg"
+                  style={{ background: '#FFFFFF', border: '1px solid #E2E8F0' }}
+                >
+                  <FileText size={16} className="shrink-0 mt-0.5" style={{ color: '#94A3B8' }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium truncate" style={{ color: '#0F172A' }}>{doc.name}</p>
+                    {doc.summary && (
+                      <p className="text-[12px] mt-1 leading-relaxed" style={{ color: '#475569' }}>{doc.summary}</p>
+                    )}
+                    <div className="flex items-center gap-4 mt-2">
+                      {doc.extracted_date && (
+                        <span className="flex items-center gap-1 text-[11px]" style={{ color: '#94A3B8' }}>
+                          <Calendar size={11} />
+                          {format(new Date(doc.extracted_date), 'd MMM yyyy', { locale: fr })}
+                        </span>
+                      )}
+                      <span className="text-[11px]" style={{ color: '#CBD5E1' }}>
+                        {format(new Date(doc.created_at), 'd MMM yyyy', { locale: fr })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </AppLayout>
+  )
+}

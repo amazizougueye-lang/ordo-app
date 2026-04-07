@@ -1,0 +1,127 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: #F8FAFC;
+    color: #0F172A;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+  }
+
+  ::selection {
+    background: #DBEAFE;
+    color: #1E293B;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-[13px] font-medium text-white transition-colors cursor-pointer;
+    background: #1E293B;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #0F172A;
+  }
+  .btn-primary:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded text-[13px] font-medium transition-colors cursor-pointer;
+    background: #FFFFFF;
+    color: #1E293B;
+    border: 1px solid #E2E8F0;
+  }
+  .btn-secondary:hover {
+    background: #F8FAFC;
+    border-color: #CBD5E1;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-2 rounded text-[13px] font-medium transition-colors cursor-pointer;
+    color: #475569;
+  }
+  .btn-ghost:hover {
+    background: #F1F5F9;
+    color: #0F172A;
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2 text-[13px] rounded transition-colors outline-none;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    color: #0F172A;
+  }
+  .input-field::placeholder {
+    color: #94A3B8;
+  }
+  .input-field:focus {
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .card {
+    @apply rounded-lg bg-white;
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  .badge-urgent {
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium;
+    background: #FEF2F2;
+    color: #DC2626;
+    border: 1px solid #FECACA;
+  }
+
+  .badge-monitor {
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium;
+    background: #FFFBEB;
+    color: #D97706;
+    border: 1px solid #FDE68A;
+  }
+
+  .badge-stable {
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium;
+    background: #F0FDF4;
+    color: #16A34A;
+    border: 1px solid #BBF7D0;
+  }
+
+  .field-label {
+    @apply block text-[12px] font-medium mb-1.5;
+    color: #475569;
+  }
+
+  .section-label {
+    @apply text-[11px] font-semibold uppercase tracking-widest;
+    color: #94A3B8;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded text-[13px] font-medium transition-colors cursor-pointer w-full;
+    color: #475569;
+  }
+  .nav-item:hover {
+    background: #F1F5F9;
+    color: #0F172A;
+  }
+  .nav-item.active {
+    background: #F1F5F9;
+    color: #0F172A;
+  }
+
+  .divider {
+    height: 1px;
+    background: #E2E8F0;
+  }
+}
