@@ -71,7 +71,7 @@ export default function Upload() {
       if (caseError) throw caseError
 
       // 3. Create document record — AI extraction via n8n webhook (async)
-      const { error: docError } = await supabase
+      const { data: newDoc, error: docError } = await supabase
         .from('documents')
         .insert({
           case_id: newCase.id,
@@ -79,17 +79,19 @@ export default function Upload() {
           name: file.name,
           storage_path: filePath,
         })
+        .select()
+        .single()
       if (docError) throw docError
 
       // 4. Trigger n8n AI extraction (fire & forget)
       const webhookUrl = import.meta.env.VITE_N8N_UPLOAD_WEBHOOK
-      if (webhookUrl) {
+      if (webhookUrl && newDoc) {
         fetch(webhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             case_id: newCase.id,
-            doc_id: newCase.id, // will be updated with actual doc id
+            doc_id: newDoc.id,
             storage_path: filePath,
             user_id: user.id,
           }),

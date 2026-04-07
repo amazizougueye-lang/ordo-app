@@ -1,0 +1,184 @@
+{
+  "name": "Ordo — Upload PDF → Groq → Supabase",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Ordo — extraction IA\n\n### Variables n8n (**Variables** / `$vars`)\nSur n8n Cloud : **Variables** (globales ou projet). Crée :\n- `SUPABASE_URL` (ex: https://xxx.supabase.co)\n- `SUPABASE_SERVICE_ROLE_KEY` (clé **service role**, jamais dans le front)\n- `GROQ_API_KEY`\n\nCes noms sont utilisés dans les expressions comme `$vars.SUPABASE_URL`, etc.\n\n### App (Vite)\n- `VITE_N8N_UPLOAD_WEBHOOK` = URL complète du webhook ci-contre (mode Production)\n\n### Après import\n1. Active le workflow\n2. Copie l’URL **Production** du nœud Webhook\n3. Colle-la dans `.env` de l’app\n\n### PDF\nLe nœud **Extract PDF** utilise le nœud natif *Extract From File*. Si ta version n8n ne l’a pas, remplace par ton extracteur (pdf.co, etc.).",
+        "height": 460,
+        "width": 460,
+        "color": 4
+      },
+      "id": "ordo-note-upload",
+      "name": "Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-720, -120]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ordo-upload",
+        "responseMode": "onReceived",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "ordo-webhook-upload",
+      "name": "Webhook Upload",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-280, 120],
+      "webhookId": "ordo-upload"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ ($vars.SUPABASE_URL || '').replace(/\\/+$/,'') + '/storage/v1/object/documents/' + ($json.body?.storage_path || $json.storage_path || '') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $vars.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "ordo-download-pdf",
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-40, 120]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data"
+      },
+      "id": "ordo-extract-pdf",
+      "name": "Extract PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [200, 120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.GROQ_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [{ role: 'system', content: \"Tu aides un cabinet juridique au Québec. Réponds UNIQUEMENT avec un objet JSON valide (sans markdown), clés: summary (string, 2–3 phrases en français), extracted_date (string YYYY-MM-DD ou null si aucune date clé), doc_type (string courte ou null).\" }, { role: 'user', content: 'Texte du document (extrait PDF):\\n' + String($json.text || '').slice(0, 120000) }], temperature: 0.2 }) }}"
+      },
+      "id": "ordo-groq",
+      "name": "Groq — extract JSON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 120]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const hookItem = $('Webhook Upload').first()?.json || {}\nconst body = hookItem.body || hookItem\nconst case_id = body.case_id\nconst doc_id = body.doc_id\n\nconst raw = $input.first().json?.choices?.[0]?.message?.content || ''\nlet summary = null\nlet extracted_date = null\nlet doc_type = null\n\ntry {\n  const cleaned = raw.replace(/^```json\\s*/i, '').replace(/```\\s*$/i, '').trim()\n  const o = JSON.parse(cleaned)\n  summary = o.summary ?? null\n  extracted_date = o.extracted_date ?? null\n  doc_type = o.doc_type ?? null\n} catch (e) {\n  summary = raw.slice(0, 800) || null\n}\n\nreturn [{ json: { case_id, doc_id, summary, extracted_date, doc_type } }]"
+      },
+      "id": "ordo-parse-ai",
+      "name": "Parse AI → champs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 120]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ ($vars.SUPABASE_URL || '').replace(/\\/+$/,'') + '/rest/v1/documents?id=eq.' + $json.doc_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $vars.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ summary: $json.summary, extracted_date: $json.extracted_date, doc_type: $json.doc_type }) }}"
+      },
+      "id": "ordo-patch-document",
+      "name": "PATCH documents",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 120]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ ($vars.SUPABASE_URL || '').replace(/\\/+$/,'') + '/rest/v1/cases?id=eq.' + $json.case_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $vars.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ summary: $json.summary, updated_at: new Date().toISOString() }, $json.extracted_date ? { deadline: $json.extracted_date } : {})) }}"
+      },
+      "id": "ordo-patch-case",
+      "name": "PATCH cases",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 120]
+    }
+  ],
+  "connections": {
+    "Webhook Upload": {
+      "main": [[{ "node": "Download PDF", "type": "main", "index": 0 }]]
+    },
+    "Download PDF": {
+      "main": [[{ "node": "Extract PDF", "type": "main", "index": 0 }]]
+    },
+    "Extract PDF": {
+      "main": [[{ "node": "Groq — extract JSON", "type": "main", "index": 0 }]]
+    },
+    "Groq — extract JSON": {
+      "main": [[{ "node": "Parse AI → champs", "type": "main", "index": 0 }]]
+    },
+    "Parse AI → champs": {
+      "main": [[{ "node": "PATCH documents", "type": "main", "index": 0 }]]
+    },
+    "PATCH documents": {
+      "main": [[{ "node": "PATCH cases", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": []
+}
