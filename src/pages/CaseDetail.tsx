@@ -390,7 +390,8 @@ export default function CaseDetail() {
                 <input
                   type="text"
                   placeholder="Nom (ex: Jugement)"
-                  className="input-field flex-1"
+                  className="input-field"
+                  style={{ color: '#0F172A', minWidth: '200px', flex: 1 }}
                   value={deadlineName}
                   onChange={e => setDeadlineName(e.target.value)}
                 />
@@ -451,8 +452,9 @@ export default function CaseDetail() {
           <div className="flex gap-2">
             <input
               type="text"
-              className="input-field flex-1"
+              className="input-field"
               placeholder="Nom du délai (ex: Audience tribunal)"
+              style={{ color: '#0F172A', minWidth: '200px', flex: 1 }}
               value={newDeadlineName}
               onChange={e => setNewDeadlineName(e.target.value)}
             />
