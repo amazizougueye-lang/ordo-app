@@ -197,12 +197,12 @@ export default function Stats() {
             <p className="text-[12px] mt-2" style={{ color: '#94A3B8' }}>{Math.round(stats.total ? (stats.monitor / stats.total * 100) : 0)}% du total</p>
           </div>
 
-          <div className="card p-5" style={{ borderTop: '3px solid #64748B' }}>
+          <div className="card p-5" style={{ borderTop: '3px solid #16A34A' }}>
             <div className="flex items-center gap-2 mb-2">
-              <CheckCircle size={14} style={{ color: '#64748B' }} />
+              <CheckCircle size={14} style={{ color: '#16A34A' }} />
               <p className="text-[11px]" style={{ color: '#94A3B8' }}>Stable</p>
             </div>
-            <p className="text-[28px] font-semibold" style={{ color: '#64748B' }}>
+            <p className="text-[28px] font-semibold" style={{ color: '#16A34A' }}>
               {stats.stable}
             </p>
             <p className="text-[12px] mt-2" style={{ color: '#94A3B8' }}>{Math.round(stats.total ? (stats.stable / stats.total * 100) : 0)}% du total</p>
