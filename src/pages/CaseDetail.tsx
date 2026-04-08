@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import { StatusBadge } from '../components/ui/StatusBadge'
+import { PDFViewer } from '../components/PDFViewer'
 import { computeStatus } from '../lib/utils'
 import { useUrgencySettings } from '../hooks/useUrgencySettings'
 import type { Case, Document, CaseStatus, Note } from '../types'
@@ -32,6 +33,8 @@ export default function CaseDetail() {
   const [status, setStatus] = useState<CaseStatus>('stable')
   const [deadline, setDeadline] = useState('')
   const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null)
+  const [viewingDoc, setViewingDoc] = useState<Document | null>(null)
+  const [viewingUrl, setViewingUrl] = useState<string | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
   const [newNote, setNewNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
@@ -136,6 +139,21 @@ export default function CaseDetail() {
     await supabase.from('cases').delete().eq('id', c.id)
     toast.success('Dossier supprimé')
     navigate('/dashboard')
+  }
+
+  const viewDocument = async (doc: Document) => {
+    if (!user || viewingDoc) return
+    try {
+      const { data: signedData } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(doc.storage_path, 3600)
+      if (signedData?.signedUrl) {
+        setViewingDoc(doc)
+        setViewingUrl(signedData.signedUrl)
+      }
+    } catch (err) {
+      toast.error('Erreur ouverture PDF')
+    }
   }
 
   const downloadDocument = async (doc: Document) => {
@@ -383,7 +401,7 @@ export default function CaseDetail() {
                   key={doc.id}
                   className="flex items-start gap-4 px-4 py-3.5 rounded-lg cursor-pointer transition-colors hover:bg-gray-50"
                   style={{ background: '#FFFFFF', border: '1px solid #E2E8F0' }}
-                  onClick={() => downloadDocument(doc)}
+                  onClick={() => viewDocument(doc)}
                 >
                   <FileText size={16} className="shrink-0 mt-0.5" style={{ color: '#94A3B8' }} />
                   <div className="flex-1 min-w-0">
@@ -420,6 +438,16 @@ export default function CaseDetail() {
             </div>
           )}
         </div>
+
+        {/* PDF Viewer Modal */}
+        {viewingDoc && viewingUrl && (
+          <PDFViewer
+            url={viewingUrl}
+            fileName={viewingDoc.name}
+            onClose={() => { setViewingDoc(null); setViewingUrl(null) }}
+            onDownload={() => downloadDocument(viewingDoc)}
+          />
+        )}
       </div>
     </AppLayout>
   )

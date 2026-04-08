@@ -10,8 +10,9 @@ import type { Case, CaseStatus } from '../types'
 import { format, differenceInDays, isPast, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
-  Search, Pin, Plus, ChevronDown, ChevronUp, ArrowRight
+  Search, Pin, Plus, ChevronDown, ChevronUp, ArrowRight, MessageSquare
 } from 'lucide-react'
+import type { Note } from '../types'
 
 type SortKey = 'deadline' | 'created_at'
 type FilterStatus = CaseStatus | 'all' | 'archived'
@@ -20,6 +21,7 @@ export default function Dashboard() {
   const { user } = useAuth()
   const { urgentDays, monitorDays } = useUrgencySettings()
   const [cases, setCases] = useState<Case[]>([])
+  const [notesMap, setNotesMap] = useState<Record<string, Note>>({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterStatus>('all')
@@ -28,16 +30,26 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) return
-    supabase
-      .from('cases')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('pinned', { ascending: false })
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setCases((data as Case[]) || [])
-        setLoading(false)
+    Promise.all([
+      supabase
+        .from('cases')
+        .select('*')
+        .eq('user_id', user.id),
+      supabase
+        .from('notes')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false }),
+    ]).then(([{ data: casesData }, { data: notesData }]) => {
+      setCases((casesData as Case[]) || [])
+      // Map dernière note par dossier
+      const map: Record<string, Note> = {}
+      ;(notesData as Note[] || []).forEach(note => {
+        if (!map[note.case_id]) map[note.case_id] = note
       })
+      setNotesMap(map)
+      setLoading(false)
+    })
   }, [user])
 
   const togglePin = async (c: Case, e: React.MouseEvent) => {
@@ -222,7 +234,7 @@ export default function Dashboard() {
                     </button>
 
                     {/* Info */}
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p
                         className="text-[13px] font-medium truncate"
                         style={{ color: '#0F172A' }}
@@ -232,6 +244,14 @@ export default function Dashboard() {
                       <p className="text-[12px]" style={{ color: '#94A3B8' }}>
                         {c.client_name}
                       </p>
+                      {notesMap[c.id] && (
+                        <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-gray-100">
+                          <MessageSquare size={11} className="shrink-0 mt-0.5" style={{ color: '#D97706' }} />
+                          <p className="text-[11px] line-clamp-1" style={{ color: '#92400E' }}>
+                            {notesMap[c.id].content}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
 
