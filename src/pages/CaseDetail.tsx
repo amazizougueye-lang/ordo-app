@@ -41,6 +41,7 @@ export default function CaseDetail() {
   const [caseType, setCaseType] = useState('')
   const [caseTypeCustom, setCaseTypeCustom] = useState('')
   const [caseDeadlines, setCaseDeadlines] = useState<CaseDeadline[]>([])
+  const [deadlineName, setDeadlineName] = useState('')
   const [newDeadlineName, setNewDeadlineName] = useState('')
   const [newDeadlineDate, setNewDeadlineDate] = useState('')
   const [savingDeadline, setSavingDeadline] = useState(false)
@@ -73,6 +74,7 @@ export default function CaseDetail() {
         setClientName(d.client_name)
         setStatus(d.status)
         setDeadline(d.deadline?.slice(0, 10) || '')
+        setDeadlineName(d.deadline_name || '')
         const t = d.case_type || 'civil'
         if (KNOWN_TYPES.includes(t)) { setCaseType(t) }
         else { setCaseType('autre'); setCaseTypeCustom(t) }
@@ -95,12 +97,13 @@ export default function CaseDetail() {
         client_name: clientName,
         status,
         deadline: deadline || null,
+        deadline_name: deadlineName.trim() || null,
         case_type: finalType,
         updated_at: new Date().toISOString(),
       })
       .eq('id', c.id)
     if (error) toast.error('Erreur lors de la sauvegarde')
-    else { toast.success('Dossier mis à jour'); setCase(prev => prev ? { ...prev, name, client_name: clientName, status, deadline, case_type: finalType } : prev) }
+    else { toast.success('Dossier mis à jour'); setCase(prev => prev ? { ...prev, name, client_name: clientName, status, deadline, deadline_name: deadlineName, case_type: finalType } : prev) }
     setSaving(false)
   }
 
@@ -151,7 +154,7 @@ export default function CaseDetail() {
 
   const getNearestDeadline = () => {
     const allDeadlines = [
-      ...(c?.deadline ? [{ name: 'Principal', deadline: c.deadline }] : []),
+      ...(c?.deadline ? [{ name: c.deadline_name || 'Principal', deadline: c.deadline }] : []),
       ...caseDeadlines.map(d => ({ name: d.name, deadline: d.deadline }))
     ]
     if (allDeadlines.length === 0) return null
@@ -383,12 +386,21 @@ export default function CaseDetail() {
             </div>
             <div>
               <label className="field-label">Délai principal</label>
-              <input
-                type="date"
-                className="input-field"
-                value={deadline}
-                onChange={e => setDeadline(e.target.value)}
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Nom (ex: Jugement)"
+                  className="input-field flex-1"
+                  value={deadlineName}
+                  onChange={e => setDeadlineName(e.target.value)}
+                />
+                <input
+                  type="date"
+                  className="input-field"
+                  value={deadline}
+                  onChange={e => setDeadline(e.target.value)}
+                />
+              </div>
             </div>
             <button onClick={handleSave} disabled={saving} className="btn-primary gap-2">
               {saving
@@ -409,7 +421,7 @@ export default function CaseDetail() {
             {c?.deadline && (
               <div className="flex items-center justify-between px-4 py-3 rounded-lg" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
                 <div>
-                  <p className="text-[13px] font-medium" style={{ color: '#0F172A' }}>Principal</p>
+                  <p className="text-[13px] font-medium" style={{ color: '#0F172A' }}>{c.deadline_name || 'Principal'}</p>
                   <p className="text-[12px]" style={{ color: '#94A3B8' }}>{format(new Date(c.deadline), 'd MMM yyyy', { locale: fr })}</p>
                 </div>
                 {(() => {

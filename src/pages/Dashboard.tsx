@@ -78,15 +78,15 @@ export default function Dashboard() {
     else { setSortKey(key); setSortAsc(true) }
   }
 
-  const getNearestDeadline = (c: Case): string | null => {
+  const getNearestDeadline = (c: Case): { deadline: string, name: string } | null => {
     const allDeadlines = [
-      ...(c.deadline ? [c.deadline] : []),
-      ...(deadlinesByCase[c.id] || []).map(d => d.deadline)
+      ...(c.deadline ? [{ deadline: c.deadline, name: c.deadline_name || 'Principal' }] : []),
+      ...(deadlinesByCase[c.id] || []).map(d => ({ deadline: d.deadline, name: d.name }))
     ]
     if (allDeadlines.length === 0) return null
     return allDeadlines.reduce((nearest, current) => {
-      const currentTime = new Date(current).getTime()
-      const nearestTime = new Date(nearest).getTime()
+      const currentTime = new Date(current.deadline).getTime()
+      const nearestTime = new Date(nearest.deadline).getTime()
       return currentTime < nearestTime ? current : nearest
     })
   }
@@ -98,7 +98,7 @@ export default function Dashboard() {
       if (filter === 'archived') return c.archived
       if (c.archived) return false
       const nearestDeadline = getNearestDeadline(c)
-      if (filter !== 'all' && computeStatus(c.status, nearestDeadline, urgentDays, monitorDays) !== filter) return false
+      if (filter !== 'all' && computeStatus(c.status, nearestDeadline?.deadline || null, urgentDays, monitorDays) !== filter) return false
       return true
     })
     .sort((a, b) => {
@@ -107,8 +107,8 @@ export default function Dashboard() {
       if (!a.pinned && b.pinned) return 1
 
       if (sortKey === 'deadline') {
-        const da = getNearestDeadline(a) ? new Date(getNearestDeadline(a)!).getTime() : Infinity
-        const db = getNearestDeadline(b) ? new Date(getNearestDeadline(b)!).getTime() : Infinity
+        const da = getNearestDeadline(a)?.deadline ? new Date(getNearestDeadline(a)!.deadline).getTime() : Infinity
+        const db = getNearestDeadline(b)?.deadline ? new Date(getNearestDeadline(b)!.deadline).getTime() : Infinity
         return sortAsc ? da - db : db - da
       }
       const da = new Date(a.created_at).getTime()
@@ -239,8 +239,8 @@ export default function Dashboard() {
         ) : (
           <div className="space-y-2">
             {filtered.map(c => {
-              const nearestDeadline = getNearestDeadline(c)
-              const dl = deadlineLabel(nearestDeadline)
+              const nearestDeadlineObj = getNearestDeadline(c)
+              const dl = deadlineLabel(nearestDeadlineObj?.deadline || null)
               return (
                 <Link
                   key={c.id}
