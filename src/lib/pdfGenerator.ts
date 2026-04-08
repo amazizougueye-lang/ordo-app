@@ -159,7 +159,7 @@ export function generatePdfContent(cases: Case[], caseDeadlines: CaseDeadline[])
   return html
 }
 
-export function downloadPdf(htmlContent: string, filename: string = 'ordo-delais.pdf'): void {
+export function downloadPdf(htmlContent: string): void {
   // Create blob from HTML
   const blob = new Blob([htmlContent], { type: 'text/html' })
   const url = URL.createObjectURL(blob)
