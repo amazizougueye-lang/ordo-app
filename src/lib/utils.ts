@@ -3,14 +3,19 @@ import type { CaseStatus } from '../types'
 
 /**
  * Calcule le statut effectif d'un dossier en tenant compte du délai.
- * Le délai prend la priorité sur le statut manuel si plus urgent.
+ * Utilise les seuils personnalisés de l'avocat.
  *
- * Règles :
- *  - Délai dépassé ou aujourd'hui → urgent
- *  - Délai dans 1 à 7 jours       → au moins surveiller
- *  - Sinon                         → statut manuel de l'avocat
+ * @param storedStatus - Statut manuel (stable/monitor/urgent)
+ * @param deadline - Date limite
+ * @param urgentDays - Seuil urgent personnalisé (défaut: 1)
+ * @param monitorDays - Seuil surveiller personnalisé (défaut: 7)
  */
-export function computeStatus(storedStatus: CaseStatus, deadline: string | null): CaseStatus {
+export function computeStatus(
+  storedStatus: CaseStatus,
+  deadline: string | null,
+  urgentDays: number = 1,
+  monitorDays: number = 7
+): CaseStatus {
   if (!deadline) return storedStatus
 
   const d = new Date(deadline)
@@ -18,11 +23,16 @@ export function computeStatus(storedStatus: CaseStatus, deadline: string | null)
   if (isPast(d) || isToday(d)) return 'urgent'
 
   const diff = differenceInDays(d, new Date())
-  if (diff <= 7) {
-    // Escalade si le délai est plus urgent que le statut manuel
+
+  // Urgent si <= seuil urgent
+  if (diff <= urgentDays) return 'urgent'
+
+  // Surveiller si <= seuil monitor (mais pas urgent)
+  if (diff <= monitorDays) {
     if (storedStatus === 'stable') return 'monitor'
     return storedStatus
   }
 
+  // Sinon retour au statut manuel
   return storedStatus
 }

@@ -11,10 +11,14 @@ export default function Profil() {
   const navigate = useNavigate()
   const [reminderTime, setReminderTime] = useState('08:00')
   const [reminderEnabled, setReminderEnabled] = useState(true)
+  const [urgentDays, setUrgentDays] = useState('1')
+  const [monitorDays, setMonitorDays] = useState('7')
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
     if (!user) return
+    const urgent = Math.max(0, parseInt(urgentDays) || 1)
+    const monitor = Math.max(urgent + 1, parseInt(monitorDays) || 7)
     setSaving(true)
     const { error } = await supabase
       .from('profiles')
@@ -22,6 +26,8 @@ export default function Profil() {
         id: user.id,
         daily_reminder_time: reminderTime,
         daily_reminder_enabled: reminderEnabled,
+        urgent_days: urgent,
+        monitor_days: monitor,
       })
     if (error) toast.error('Erreur lors de la sauvegarde')
     else toast.success('Profil enregistré')
@@ -47,6 +53,37 @@ export default function Profil() {
         <div className="card p-5 mb-4">
           <p className="section-label mb-3">Compte</p>
           <p className="text-[13px]" style={{ color: '#475569' }}>{user?.email}</p>
+        </div>
+
+        {/* Urgency thresholds */}
+        <div className="card p-5 mb-4">
+          <p className="section-label mb-4">Seuils d'urgence (jours)</p>
+          <div className="space-y-4">
+            <div>
+              <label className="field-label">Urgent si délai ≤</label>
+              <input
+                type="number"
+                min="0"
+                className="input-field"
+                value={urgentDays}
+                onChange={e => setUrgentDays(e.target.value)}
+                placeholder="1"
+              />
+              <p className="text-[11px] mt-1" style={{ color: '#94A3B8' }}>Jours avant la deadline</p>
+            </div>
+            <div>
+              <label className="field-label">À surveiller si délai ≤</label>
+              <input
+                type="number"
+                min="1"
+                className="input-field"
+                value={monitorDays}
+                onChange={e => setMonitorDays(e.target.value)}
+                placeholder="7"
+              />
+              <p className="text-[11px] mt-1" style={{ color: '#94A3B8' }}>Jours avant la deadline (doit être &gt; Urgent)</p>
+            </div>
+          </div>
         </div>
 
         {/* Daily reminder */}

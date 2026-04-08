@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import { StatusBadge } from '../components/ui/StatusBadge'
+import { computeStatus } from '../lib/utils'
+import { useUrgencySettings } from '../hooks/useUrgencySettings'
 import type { Case, Document, CaseStatus } from '../types'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -16,6 +18,7 @@ import {
 export default function CaseDetail() {
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
+  const { urgentDays, monitorDays } = useUrgencySettings()
   const navigate = useNavigate()
   const [c, setCase] = useState<Case | null>(null)
   const [docs, setDocs] = useState<Document[]>([])
@@ -146,7 +149,7 @@ export default function CaseDetail() {
 
         {/* Title */}
         <div className="mb-7">
-          <StatusBadge status={c.status} />
+          <StatusBadge status={computeStatus(c.status, c.deadline, urgentDays, monitorDays)} />
           <h1
             className="text-[24px] font-semibold mt-2"
             style={{ color: '#0F172A', letterSpacing: '-0.02em' }}

@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { computeStatus } from '../lib/utils'
+import { useUrgencySettings } from '../hooks/useUrgencySettings'
 import type { Case, CaseStatus } from '../types'
 import { format, differenceInDays, isPast, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -17,6 +18,7 @@ type FilterStatus = CaseStatus | 'all'
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const { urgentDays, monitorDays } = useUrgencySettings()
   const [cases, setCases] = useState<Case[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -55,7 +57,7 @@ export default function Dashboard() {
     .filter(c => {
       const q = search.toLowerCase()
       if (q && !c.name.toLowerCase().includes(q) && !c.client_name.toLowerCase().includes(q)) return false
-      if (filter !== 'all' && computeStatus(c.status, c.deadline) !== filter) return false
+      if (filter !== 'all' && computeStatus(c.status, c.deadline, urgentDays, monitorDays) !== filter) return false
       return true
     })
     .sort((a, b) => {
@@ -232,7 +234,7 @@ export default function Dashboard() {
                   </div>
 
                   <div className="flex items-center gap-5 shrink-0">
-                    <StatusBadge status={computeStatus(c.status, c.deadline)} />
+                    <StatusBadge status={computeStatus(c.status, c.deadline, urgentDays, monitorDays)} />
                     {dl && (
                       <span className="text-[12px] font-medium w-32 text-right" style={{ color: dl.color }}>
                         {dl.text}
