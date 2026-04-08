@@ -83,7 +83,13 @@ export default function Upload() {
         .single()
       if (docError) throw docError
 
-      // 4. Trigger n8n AI extraction (fire & forget)
+      // 4. Generate signed URL (60 min) so n8n can download the PDF without service role
+      const { data: signedData } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(filePath, 3600)
+      const pdfUrl = signedData?.signedUrl ?? null
+
+      // 5. Trigger n8n AI extraction (fire & forget)
       const webhookUrl = import.meta.env.VITE_N8N_UPLOAD_WEBHOOK
       if (webhookUrl && newDoc) {
         fetch(webhookUrl, {
@@ -93,6 +99,7 @@ export default function Upload() {
             case_id: newCase.id,
             doc_id: newDoc.id,
             storage_path: filePath,
+            pdf_url: pdfUrl,
             user_id: user.id,
           }),
         }).catch(() => {}) // fire & forget
