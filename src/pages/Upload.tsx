@@ -1,24 +1,52 @@
-import { useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useRef, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import { toast } from 'sonner'
 import { Upload as UploadIcon, FileText, X, Loader2, ChevronDown } from 'lucide-react'
-import type { CaseStatus } from '../types'
+import type { CaseStatus, Case } from '../types'
 
 export default function Upload() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const caseId = searchParams.get('case_id')
   const fileRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [dragging, setDragging] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [existingCase, setExistingCase] = useState<Case | null>(null)
+  const [loadingCase, setLoadingCase] = useState(!!caseId)
 
   // Case fields
   const [caseName, setCaseName] = useState('')
   const [clientName, setClientName] = useState('')
   const [status, setStatus] = useState<CaseStatus>('stable')
+
+  // Load existing case if case_id in URL
+  useEffect(() => {
+    if (!caseId || !user) {
+      setLoadingCase(false)
+      return
+    }
+    supabase
+      .from('cases')
+      .select('*')
+      .eq('id', caseId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setExistingCase(data as Case)
+          setCaseName(data.name)
+          setClientName(data.client_name)
+          setStatus(data.status)
+        } else {
+          toast.error('Dossier introuvable')
+        }
+        setLoadingCase(false)
+      })
+  }, [caseId, user])
 
   const handleFile = (f: File) => {
     if (f.type !== 'application/pdf') {
@@ -56,25 +84,38 @@ export default function Upload() {
         .upload(filePath, file)
       if (uploadError) throw uploadError
 
-      // 2. Create case
-      const { data: newCase, error: caseError } = await supabase
-        .from('cases')
-        .insert({
-          user_id: user.id,
+      // 2. Determine case ID (existing or new)
+      let caseIdToUse: string
+      if (existingCase) {
+        // Updating existing case — save changes if any
+        await supabase.from('cases').update({
           name: caseName.trim(),
           client_name: clientName.trim(),
           status,
-          pinned: false,
-        })
-        .select()
-        .single()
-      if (caseError) throw caseError
+        }).eq('id', existingCase.id)
+        caseIdToUse = existingCase.id
+      } else {
+        // Create new case
+        const { data: newCase, error: caseError } = await supabase
+          .from('cases')
+          .insert({
+            user_id: user.id,
+            name: caseName.trim(),
+            client_name: clientName.trim(),
+            status,
+            pinned: false,
+          })
+          .select()
+          .single()
+        if (caseError) throw caseError
+        caseIdToUse = newCase.id
+      }
 
-      // 3. Create document record — AI extraction via n8n webhook (async)
+      // 3. Create document record
       const { data: newDoc, error: docError } = await supabase
         .from('documents')
         .insert({
-          case_id: newCase.id,
+          case_id: caseIdToUse,
           user_id: user.id,
           name: file.name,
           storage_path: filePath,
@@ -83,7 +124,7 @@ export default function Upload() {
         .single()
       if (docError) throw docError
 
-      // 4. Generate signed URL (60 min) so n8n can download the PDF without service role
+      // 4. Generate signed URL (60 min)
       const { data: signedData } = await supabase.storage
         .from('documents')
         .createSignedUrl(filePath, 3600)
@@ -96,7 +137,7 @@ export default function Upload() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            case_id: newCase.id,
+            case_id: caseIdToUse,
             doc_id: newDoc.id,
             storage_path: filePath,
             pdf_url: pdfUrl,
@@ -105,13 +146,23 @@ export default function Upload() {
         }).catch(() => {}) // fire & forget
       }
 
-      toast.success('Dossier créé — l\'IA analyse le document')
-      navigate(`/dossier/${newCase.id}`)
+      toast.success(existingCase ? 'Document ajouté — l\'IA analyse' : 'Dossier créé — l\'IA analyse')
+      navigate(`/dossier/${caseIdToUse}`)
     } catch (err) {
       console.error(err)
-      toast.error('Erreur lors de la création du dossier')
+      toast.error('Erreur')
     }
     setProcessing(false)
+  }
+
+  if (loadingCase) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-full" style={{ color: '#94A3B8' }}>
+          Chargement…
+        </div>
+      </AppLayout>
+    )
   }
 
   return (
@@ -121,7 +172,7 @@ export default function Upload() {
           className="text-[22px] font-semibold mb-8"
           style={{ color: '#0F172A', letterSpacing: '-0.02em' }}
         >
-          Nouveau dossier
+          {existingCase ? 'Ajouter un document' : 'Nouveau dossier'}
         </h1>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -173,44 +224,46 @@ export default function Upload() {
           </div>
 
           {/* Case info */}
-          <div className="card p-5 space-y-4">
-            <p className="section-label">Informations du dossier</p>
-            <div>
-              <label className="field-label">Nom du dossier</label>
-              <input
-                className="input-field"
-                placeholder="Ex: Litige locatif — Tremblay"
-                value={caseName}
-                onChange={e => setCaseName(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label className="field-label">Client</label>
-              <input
-                className="input-field"
-                placeholder="Ex: Jean Tremblay"
-                value={clientName}
-                onChange={e => setClientName(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label className="field-label">Statut initial</label>
-              <div className="relative">
-                <select
-                  className="input-field appearance-none pr-8"
-                  value={status}
-                  onChange={e => setStatus(e.target.value as CaseStatus)}
-                >
-                  <option value="stable">Stable</option>
-                  <option value="monitor">À surveiller</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#94A3B8' }} />
+          {!existingCase && (
+            <div className="card p-5 space-y-4">
+              <p className="section-label">Informations du dossier</p>
+              <div>
+                <label className="field-label">Nom du dossier</label>
+                <input
+                  className="input-field"
+                  placeholder="Ex: Litige locatif — Tremblay"
+                  value={caseName}
+                  onChange={e => setCaseName(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="field-label">Client</label>
+                <input
+                  className="input-field"
+                  placeholder="Ex: Jean Tremblay"
+                  value={clientName}
+                  onChange={e => setClientName(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="field-label">Statut initial</label>
+                <div className="relative">
+                  <select
+                    className="input-field appearance-none pr-8"
+                    value={status}
+                    onChange={e => setStatus(e.target.value as CaseStatus)}
+                  >
+                    <option value="stable">Stable</option>
+                    <option value="monitor">À surveiller</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#94A3B8' }} />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <button
             type="submit"

@@ -10,7 +10,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
   ArrowLeft, Pin, FileText, Calendar, Trash2,
-  Loader2, CheckCircle, ChevronDown
+  Loader2, CheckCircle, ChevronDown, Plus, Download
 } from 'lucide-react'
 
 export default function CaseDetail() {
@@ -27,6 +27,7 @@ export default function CaseDetail() {
   const [clientName, setClientName] = useState('')
   const [status, setStatus] = useState<CaseStatus>('stable')
   const [deadline, setDeadline] = useState('')
+  const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id || !user) return
@@ -79,6 +80,28 @@ export default function CaseDetail() {
     await supabase.from('cases').delete().eq('id', c.id)
     toast.success('Dossier supprimé')
     navigate('/dashboard')
+  }
+
+  const downloadDocument = async (doc: Document) => {
+    if (!user) return
+    setDownloadingDoc(doc.id)
+    try {
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .download(doc.storage_path)
+      if (error) throw error
+      const url = URL.createObjectURL(data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = doc.name
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      toast.error('Erreur téléchargement')
+    }
+    setDownloadingDoc(null)
   }
 
   if (loading) return (
@@ -191,7 +214,16 @@ export default function CaseDetail() {
 
         {/* Documents */}
         <div>
-          <p className="section-label mb-3">Documents ({docs.length})</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="section-label">Documents ({docs.length})</p>
+            <Link
+              to={`/upload?case_id=${c?.id}`}
+              className="btn-ghost gap-1.5 text-[13px]"
+              style={{ padding: '6px 10px' }}
+            >
+              <Plus size={14} /> Ajouter doc
+            </Link>
+          </div>
           {docs.length === 0 ? (
             <div
               className="rounded-lg px-5 py-8 text-center"
@@ -204,8 +236,9 @@ export default function CaseDetail() {
               {docs.map(doc => (
                 <div
                   key={doc.id}
-                  className="flex items-start gap-4 px-4 py-3.5 rounded-lg"
+                  className="flex items-start gap-4 px-4 py-3.5 rounded-lg cursor-pointer transition-colors hover:bg-gray-50"
                   style={{ background: '#FFFFFF', border: '1px solid #E2E8F0' }}
+                  onClick={() => downloadDocument(doc)}
                 >
                   <FileText size={16} className="shrink-0 mt-0.5" style={{ color: '#94A3B8' }} />
                   <div className="flex-1 min-w-0">
@@ -225,6 +258,18 @@ export default function CaseDetail() {
                       </span>
                     </div>
                   </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); downloadDocument(doc) }}
+                    disabled={downloadingDoc === doc.id}
+                    className="shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ color: '#94A3B8' }}
+                    title="Télécharger"
+                  >
+                    {downloadingDoc === doc.id
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : <Download size={14} />
+                    }
+                  </button>
                 </div>
               ))}
             </div>
