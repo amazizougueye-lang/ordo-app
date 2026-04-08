@@ -91,7 +91,7 @@ export default function Calendar() {
   const getStatusColor = (status: string) => {
     if (status === 'urgent') return '#DC2626'
     if (status === 'monitor') return '#D97706'
-    return '#64748B'
+    return '#16A34A'
   }
 
   if (loading) return (

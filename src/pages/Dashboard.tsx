@@ -174,20 +174,30 @@ export default function Dashboard() {
 
           {/* Status filter */}
           <div className="flex items-center gap-1">
-            {(['all', 'urgent', 'monitor', 'stable', 'archived'] as const).map(s => (
-              <button
-                key={s}
-                onClick={() => setFilter(s)}
-                className="px-3 py-1.5 rounded text-[12px] font-medium transition-colors"
-                style={{
-                  background: filter === s ? '#1E293B' : '#FFFFFF',
-                  color: filter === s ? '#FFFFFF' : '#475569',
-                  border: `1px solid ${filter === s ? '#1E293B' : '#E2E8F0'}`,
-                }}
-              >
-                {s === 'all' ? 'Tous' : s === 'urgent' ? 'Urgent' : s === 'monitor' ? 'Surveiller' : s === 'archived' ? 'Archivés' : 'Actif'}
-              </button>
-            ))}
+            {(['all', 'urgent', 'monitor', 'stable', 'archived'] as const).map(s => {
+              const tooltips = {
+                all: 'Afficher tous les dossiers actifs',
+                urgent: `Moins de ${urgentDays} jours`,
+                monitor: `Entre ${urgentDays} et ${monitorDays} jours`,
+                stable: `Plus de ${monitorDays} jours`,
+                archived: 'Dossiers archivés',
+              }
+              return (
+                <button
+                  key={s}
+                  onClick={() => setFilter(s)}
+                  className="px-3 py-1.5 rounded text-[12px] font-medium transition-colors"
+                  style={{
+                    background: filter === s ? '#1E293B' : '#FFFFFF',
+                    color: filter === s ? '#FFFFFF' : '#475569',
+                    border: `1px solid ${filter === s ? '#1E293B' : '#E2E8F0'}`,
+                  }}
+                  title={tooltips[s]}
+                >
+                  {s === 'all' ? 'Tous' : s === 'urgent' ? 'Urgent' : s === 'monitor' ? 'Surveiller' : s === 'archived' ? 'Archivés' : 'Actif'}
+                </button>
+              )
+            })}
           </div>
 
           {/* Sort */}

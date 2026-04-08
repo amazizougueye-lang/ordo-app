@@ -4,10 +4,11 @@ import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import { computeStatus } from '../lib/utils'
 import { useUrgencySettings } from '../hooks/useUrgencySettings'
+import { generateIcsContent, downloadIcs } from '../lib/icsGenerator'
 import type { Case, CaseDeadline } from '../types'
 import { format, differenceInDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { AlertCircle, Clock, CheckCircle, Archive, Calendar } from 'lucide-react'
+import { AlertCircle, Clock, CheckCircle, Archive, Calendar, Download } from 'lucide-react'
 
 interface Stats {
   total: number
@@ -109,10 +110,23 @@ export default function Stats() {
   const getStatusColor = (status: string) => {
     if (status === 'urgent') return '#DC2626'
     if (status === 'monitor') return '#D97706'
-    return '#64748B'
+    return '#16A34A'
   }
 
   const maxCases = stats ? Math.max(...Object.values(stats.byType)) : 1
+
+  const handleExportOutlook = async () => {
+    if (!user) return
+    const [{ data: casesData }, { data: deadlinesData }] = await Promise.all([
+      supabase.from('cases').select('*').eq('user_id', user.id),
+      supabase.from('case_deadlines').select('*').eq('user_id', user.id),
+    ])
+    const icsContent = generateIcsContent(
+      (casesData as Case[]) || [],
+      (deadlinesData as CaseDeadline[]) || []
+    )
+    downloadIcs(icsContent)
+  }
 
   if (loading) return (
     <AppLayout>
@@ -133,9 +147,23 @@ export default function Stats() {
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <h1 className="text-[24px] font-semibold mb-8" style={{ color: '#0F172A', letterSpacing: '-0.02em' }}>
-          Statistiques
-        </h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-[24px] font-semibold" style={{ color: '#0F172A', letterSpacing: '-0.02em' }}>
+            Statistiques
+          </h1>
+          <button
+            onClick={handleExportOutlook}
+            className="flex items-center gap-2 px-4 py-2 rounded text-[13px] font-medium transition-colors"
+            style={{
+              background: '#3B82F6',
+              color: '#FFFFFF',
+            }}
+            title="Exporter tous les délais en fichier .ics pour Outlook"
+          >
+            <Download size={14} />
+            Export Outlook
+          </button>
+        </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
@@ -261,7 +289,7 @@ export default function Stats() {
             <svg width="200" height="200" viewBox="0 0 200 200" className="shrink-0">
               <circle cx="100" cy="100" r="80" fill="none" stroke="#DC2626" strokeWidth="20" strokeDasharray={`${(stats.urgent / stats.total) * 503.3} 503.3`} />
               <circle cx="100" cy="100" r="80" fill="none" stroke="#D97706" strokeWidth="20" strokeDasharray={`${(stats.monitor / stats.total) * 503.3} 503.3`} strokeDashoffset={`${-(stats.urgent / stats.total) * 503.3}`} />
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#94A3B8" strokeWidth="20" strokeDasharray={`${(stats.stable / stats.total) * 503.3} 503.3`} strokeDashoffset={`${-((stats.urgent + stats.monitor) / stats.total) * 503.3}`} />
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#16A34A" strokeWidth="20" strokeDasharray={`${(stats.stable / stats.total) * 503.3} 503.3`} strokeDashoffset={`${-((stats.urgent + stats.monitor) / stats.total) * 503.3}`} />
               <text x="100" y="110" textAnchor="middle" fontSize="24" fontWeight="bold" fill="#0F172A">
                 {stats.total}
               </text>
@@ -276,7 +304,7 @@ export default function Stats() {
                 <p className="text-[12px]" style={{ color: '#475569' }}>Surveiller: {stats.monitor} ({Math.round(stats.total ? (stats.monitor / stats.total * 100) : 0)}%)</p>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded" style={{ background: '#94A3B8' }} />
+                <div className="w-4 h-4 rounded" style={{ background: '#16A34A' }} />
                 <p className="text-[12px]" style={{ color: '#475569' }}>Stable: {stats.stable} ({Math.round(stats.total ? (stats.stable / stats.total * 100) : 0)}%)</p>
               </div>
             </div>
