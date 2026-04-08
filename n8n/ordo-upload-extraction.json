@@ -3,9 +3,9 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Ordo — extraction IA\n\n### Variables n8n (Settings → Variables)\nCrée ces variables dans ton projet n8n :\n- `SUPABASE_URL` → https://ctfqgvrzstwtkborbhai.supabase.co\n- `SUPABASE_SERVICE_ROLE_KEY` → ta clé service_role Supabase\n- `GROQ_API_KEY` → ta clé Groq\n\n### Comment ça marche\n1. L'app envoie un POST avec case_id, doc_id, pdf_url (signed URL 60 min)\n2. n8n télécharge le PDF via l'URL signée (pas besoin d'auth)\n3. Groq extrait summary, extracted_date, doc_type\n4. On PATCH documents + cases dans Supabase\n\n### Après import\n1. Active le workflow (toggle en haut à droite)\n2. Copie l'URL Production du nœud Webhook\n3. Mets-la dans Vercel → VITE_N8N_UPLOAD_WEBHOOK",
-        "height": 480,
-        "width": 480,
+        "content": "## Ordo — extraction IA\n\n### Variables n8n requises (Settings → Variables)\n- `SUPABASE_SERVICE_ROLE_KEY` → clé service_role Supabase\n- `GROQ_API_KEY` → clé Groq\n\n### Optionnel\n- `SUPABASE_URL` → si tu veux pas hardcoder (sinon c'est dans le code)\n\n### Après import\n1. Active le workflow\n2. Copie l'URL Production du Webhook\n3. Vérifie dans Vercel : VITE_N8N_UPLOAD_WEBHOOK = cette URL",
+        "height": 380,
+        "width": 420,
         "color": 4
       },
       "id": "ordo-note-upload",
@@ -32,8 +32,19 @@
     },
     {
       "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Extraire le body du webhook (n8n le met dans .body ou à la racine)\nconst raw = $input.first().json\nconst body = (raw.body && typeof raw.body === 'object') ? raw.body : raw\n\nconst case_id = body.case_id || null\nconst doc_id = body.doc_id || null\nconst storage_path = body.storage_path || ''\nconst pdf_url = body.pdf_url || null\n\n// Construire l'URL de téléchargement\n// Priorité 1 : signed URL générée par l'app\n// Priorité 2 : URL directe Supabase Storage avec auth service role\nconst supabaseBase = ($vars.SUPABASE_URL || 'https://ctfqgvrzstwtkborbhai.supabase.co').replace(/\\/+$/, '')\nconst downloadUrl = (pdf_url && pdf_url.startsWith('http'))\n  ? pdf_url\n  : supabaseBase + '/storage/v1/object/documents/' + storage_path\n\nconsole.log('downloadUrl:', downloadUrl)\nconsole.log('case_id:', case_id, 'doc_id:', doc_id)\n\nreturn [{ json: { downloadUrl, case_id, doc_id, storage_path } }]"
+      },
+      "id": "ordo-prepare",
+      "name": "Préparer URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-40, 120]
+    },
+    {
+      "parameters": {
         "method": "GET",
-        "url": "={{ (function() { const b = $json.body || $json; const pdfUrl = b.pdf_url; const storagePath = b.storage_path || ''; const base = ($vars.SUPABASE_URL || '').replace(/\\/+$/, ''); return (pdfUrl && String(pdfUrl).startsWith('http')) ? pdfUrl : (base + '/storage/v1/object/documents/' + storagePath); })() }}",
+        "url": "={{ $json.downloadUrl }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -56,10 +67,10 @@
         }
       },
       "id": "ordo-download-pdf",
-      "name": "Download PDF",
+      "name": "Télécharger le PDF",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-40, 120]
+      "position": [200, 120]
     },
     {
       "parameters": {
@@ -67,10 +78,10 @@
         "binaryPropertyName": "data"
       },
       "id": "ordo-extract-pdf",
-      "name": "Extract PDF Text",
+      "name": "Extraire texte PDF",
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
-      "position": [200, 120]
+      "position": [440, 120]
     },
     {
       "parameters": {
@@ -91,29 +102,29 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [{ role: 'system', content: 'Tu aides un cabinet juridique au Quebec. Reponds UNIQUEMENT avec un objet JSON valide sans markdown, avec exactement ces cles: summary (string, 2-3 phrases en francais resumant le document), extracted_date (string YYYY-MM-DD representant la date cle du document, ou null), doc_type (string courte comme mise en demeure / jugement / contrat / requete, ou null). Aucun texte avant ou apres le JSON.' }, { role: 'user', content: 'Voici le texte extrait du document juridique:\\n\\n' + String($json.text || '').slice(0, 100000) }], temperature: 0.1 }) }}"
+        "jsonBody": "={{ JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [{ role: 'system', content: 'Tu aides un cabinet juridique au Quebec. Reponds UNIQUEMENT avec un objet JSON valide sans markdown, avec exactement ces cles: summary (string, 2-3 phrases en francais resumant le document), extracted_date (string YYYY-MM-DD representant la date cle ou le delai du document, ou null), doc_type (string courte: mise en demeure / jugement / contrat / requete / autre, ou null). Aucun texte avant ou apres le JSON.' }, { role: 'user', content: 'Voici le texte du document juridique. Extrais les informations demandees:\\n\\n' + String($json.text || '').slice(0, 100000) }], temperature: 0.1 }) }}"
       },
       "id": "ordo-groq",
-      "name": "Groq — extract JSON",
+      "name": "Groq — extraire JSON",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 120]
+      "position": [680, 120]
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Récupère les données du webhook (body peut être à la racine ou dans .body)\nconst webhookData = $('Webhook Upload').first().json\nconst body = webhookData.body || webhookData\nconst case_id = body.case_id || null\nconst doc_id = body.doc_id || null\n\n// Récupère la réponse Groq\nconst raw = $input.first().json?.choices?.[0]?.message?.content || ''\n\nlet summary = null\nlet extracted_date = null\nlet doc_type = null\n\ntry {\n  // Nettoie le markdown si Groq en ajoute\n  const cleaned = raw\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/```\\s*$/i, '')\n    .trim()\n  const o = JSON.parse(cleaned)\n  summary = typeof o.summary === 'string' ? o.summary : null\n  // Valide le format de date\n  if (o.extracted_date && /^\\d{4}-\\d{2}-\\d{2}$/.test(o.extracted_date)) {\n    extracted_date = o.extracted_date\n  }\n  doc_type = typeof o.doc_type === 'string' ? o.doc_type : null\n} catch (e) {\n  // Si parse échoue, met le texte brut comme summary\n  summary = raw.slice(0, 500) || 'Extraction automatique'\n}\n\nreturn [{ json: { case_id, doc_id, summary, extracted_date, doc_type } }]"
+        "jsCode": "// IDs depuis le nœud Préparer URL\nconst prep = $('Préparer URL').first().json\nconst case_id = prep.case_id\nconst doc_id = prep.doc_id\n\n// Réponse Groq\nconst raw = $input.first().json?.choices?.[0]?.message?.content || ''\n\nlet summary = null\nlet extracted_date = null\nlet doc_type = null\n\ntry {\n  const cleaned = raw\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/```\\s*$/i, '')\n    .trim()\n  const o = JSON.parse(cleaned)\n  summary = typeof o.summary === 'string' ? o.summary : null\n  if (o.extracted_date && /^\\d{4}-\\d{2}-\\d{2}$/.test(String(o.extracted_date))) {\n    extracted_date = o.extracted_date\n  }\n  doc_type = typeof o.doc_type === 'string' ? o.doc_type : null\n} catch (e) {\n  summary = raw.slice(0, 500) || 'Extraction automatique'\n}\n\nconsole.log('Extraction OK — case_id:', case_id, 'summary:', summary, 'date:', extracted_date)\n\nreturn [{ json: { case_id, doc_id, summary, extracted_date, doc_type } }]"
       },
       "id": "ordo-parse-ai",
       "name": "Parse AI → champs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [680, 120]
+      "position": [920, 120]
     },
     {
       "parameters": {
         "method": "PATCH",
-        "url": "={{ ($vars.SUPABASE_URL || '').replace(/\\/+$/, '') + '/rest/v1/documents?id=eq.' + $json.doc_id }}",
+        "url": "={{ ($vars.SUPABASE_URL || 'https://ctfqgvrzstwtkborbhai.supabase.co').replace(/\\/+$/, '') + '/rest/v1/documents?id=eq.' + $json.doc_id }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -131,12 +142,12 @@
       "name": "PATCH documents",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [920, 120]
+      "position": [1160, 120]
     },
     {
       "parameters": {
         "method": "PATCH",
-        "url": "={{ ($vars.SUPABASE_URL || '').replace(/\\/+$/, '') + '/rest/v1/cases?id=eq.' + $json.case_id }}",
+        "url": "={{ ($vars.SUPABASE_URL || 'https://ctfqgvrzstwtkborbhai.supabase.co').replace(/\\/+$/, '') + '/rest/v1/cases?id=eq.' + $('Parse AI → champs').first().json.case_id }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -148,26 +159,29 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify(Object.assign({ summary: $json.summary, updated_at: new Date().toISOString() }, $json.extracted_date ? { deadline: $json.extracted_date } : {})) }}"
+        "jsonBody": "={{ JSON.stringify(Object.assign({ summary: $('Parse AI → champs').first().json.summary, updated_at: new Date().toISOString() }, $('Parse AI → champs').first().json.extracted_date ? { deadline: $('Parse AI → champs').first().json.extracted_date } : {})) }}"
       },
       "id": "ordo-patch-case",
       "name": "PATCH cases",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1160, 120]
+      "position": [1400, 120]
     }
   ],
   "connections": {
     "Webhook Upload": {
-      "main": [[{ "node": "Download PDF", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Préparer URL", "type": "main", "index": 0 }]]
     },
-    "Download PDF": {
-      "main": [[{ "node": "Extract PDF Text", "type": "main", "index": 0 }]]
+    "Préparer URL": {
+      "main": [[{ "node": "Télécharger le PDF", "type": "main", "index": 0 }]]
     },
-    "Extract PDF Text": {
-      "main": [[{ "node": "Groq — extract JSON", "type": "main", "index": 0 }]]
+    "Télécharger le PDF": {
+      "main": [[{ "node": "Extraire texte PDF", "type": "main", "index": 0 }]]
     },
-    "Groq — extract JSON": {
+    "Extraire texte PDF": {
+      "main": [[{ "node": "Groq — extraire JSON", "type": "main", "index": 0 }]]
+    },
+    "Groq — extraire JSON": {
       "main": [[{ "node": "Parse AI → champs", "type": "main", "index": 0 }]]
     },
     "Parse AI → champs": {
