@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import { computeStatus } from '../lib/utils'
 import { useUrgencySettings } from '../hooks/useUrgencySettings'
-import { generateIcsContent, downloadIcs } from '../lib/icsGenerator'
+import { generatePdfContent, downloadPdf } from '../lib/pdfGenerator'
 import type { Case, CaseDeadline } from '../types'
 import { format, differenceInDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -121,11 +121,11 @@ export default function Stats() {
       supabase.from('cases').select('*').eq('user_id', user.id),
       supabase.from('case_deadlines').select('*').eq('user_id', user.id),
     ])
-    const icsContent = generateIcsContent(
+    const pdfContent = generatePdfContent(
       (casesData as Case[]) || [],
       (deadlinesData as CaseDeadline[]) || []
     )
-    downloadIcs(icsContent)
+    downloadPdf(pdfContent)
   }
 
   if (loading) return (

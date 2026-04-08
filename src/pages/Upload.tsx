@@ -4,9 +4,10 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import { toast } from 'sonner'
-import { Upload as UploadIcon, FileText, X, Loader2, ChevronDown, Mail } from 'lucide-react'
+import { Upload as UploadIcon, FileText, X, Loader2, ChevronDown, Mail, Calendar } from 'lucide-react'
 import type { CaseStatus, Case } from '../types'
 import { parseEmlFile } from '../lib/emailParser'
+import { parseIcsFile } from '../lib/icsParser'
 
 export default function Upload() {
   const { user } = useAuth()
@@ -15,12 +16,13 @@ export default function Upload() {
   const caseId = searchParams.get('case_id')
   const fileRef = useRef<HTMLInputElement>(null)
   const emailRef = useRef<HTMLInputElement>(null)
+  const outlookRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [dragging, setDragging] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [existingCase, setExistingCase] = useState<Case | null>(null)
   const [loadingCase, setLoadingCase] = useState(!!caseId)
-  const [mode, setMode] = useState<'pdf' | 'email'>('pdf')
+  const [mode, setMode] = useState<'pdf' | 'email' | 'outlook'>('pdf')
 
   // Case fields
   const [caseName, setCaseName] = useState('')
@@ -75,12 +77,18 @@ export default function Upload() {
       if (!caseName) {
         setCaseName(f.name.replace('.pdf', '').replace(/[-_]/g, ' '))
       }
-    } else {
+    } else if (mode === 'email') {
       if (!f.name.endsWith('.eml')) {
         toast.error('Seuls les fichiers .eml sont acceptés')
         return
       }
       handleEmailFile(f)
+    } else if (mode === 'outlook') {
+      if (!f.name.endsWith('.ics')) {
+        toast.error('Seuls les fichiers .ics sont acceptés')
+        return
+      }
+      handleOutlookFile(f)
     }
   }
 
@@ -93,6 +101,21 @@ export default function Upload() {
       toast.success('Email analysé - Remplissez les détails')
     } catch (err) {
       toast.error('Erreur lors de la lecture de l\'email')
+      console.error(err)
+    }
+  }
+
+  const handleOutlookFile = async (f: File) => {
+    try {
+      const parsed = await parseIcsFile(f)
+      setCaseName(parsed.summary)
+      if (parsed.description) {
+        setClientName(parsed.description.split('\n')[0])
+      }
+      setFile(f) // Store for later
+      toast.success('Événement Outlook analysé - Remplissez les détails')
+    } catch (err) {
+      toast.error('Erreur lors de la lecture du fichier Outlook')
       console.error(err)
     }
   }
@@ -249,13 +272,25 @@ export default function Upload() {
             >
               <Mail size={14} className="inline mr-1.5" /> Email
             </button>
+            <button
+              type="button"
+              onClick={() => { setMode('outlook'); setFile(null) }}
+              className="flex-1 px-3 py-2 rounded text-[13px] font-medium transition-colors"
+              style={{
+                background: mode === 'outlook' ? '#1E293B' : '#FFFFFF',
+                color: mode === 'outlook' ? '#FFFFFF' : '#475569',
+                border: `1px solid ${mode === 'outlook' ? '#1E293B' : '#E2E8F0'}`,
+              }}
+            >
+              <Calendar size={14} className="inline mr-1.5" /> Outlook
+            </button>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Drop zone */}
           <div>
-            <p className="section-label mb-3">{mode === 'pdf' ? 'Document PDF' : 'Fichier Email (.eml)'}</p>
+            <p className="section-label mb-3">{mode === 'pdf' ? 'Document PDF' : mode === 'email' ? 'Fichier Email (.eml)' : 'Événement Outlook (.ics)'}</p>
             <div
               className="rounded-lg p-8 text-center cursor-pointer transition-all"
               style={{
@@ -265,7 +300,7 @@ export default function Upload() {
               onDragOver={e => { e.preventDefault(); setDragging(true) }}
               onDragLeave={() => setDragging(false)}
               onDrop={handleDrop}
-              onClick={() => !file && (mode === 'pdf' ? fileRef.current?.click() : emailRef.current?.click())}
+              onClick={() => !file && (mode === 'pdf' ? fileRef.current?.click() : mode === 'email' ? emailRef.current?.click() : outlookRef.current?.click())}
             >
               {file ? (
                 <div className="flex items-center justify-center gap-3">
@@ -288,11 +323,18 @@ export default function Upload() {
                         Glissez un PDF ici
                       </p>
                     </>
-                  ) : (
+                  ) : mode === 'email' ? (
                     <>
                       <Mail size={24} className="mx-auto mb-3" style={{ color: '#CBD5E1' }} />
                       <p className="text-[13px] font-medium" style={{ color: '#475569' }}>
                         Glissez un email .eml ici
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Calendar size={24} className="mx-auto mb-3" style={{ color: '#CBD5E1' }} />
+                      <p className="text-[13px] font-medium" style={{ color: '#475569' }}>
+                        Glissez un événement Outlook (.ics) ici
                       </p>
                     </>
                   )}
@@ -312,6 +354,13 @@ export default function Upload() {
                 ref={emailRef}
                 type="file"
                 accept=".eml"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+              />
+              <input
+                ref={outlookRef}
+                type="file"
+                accept=".ics"
                 className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
               />
