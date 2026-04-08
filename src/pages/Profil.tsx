@@ -9,28 +9,64 @@ import { Loader2, CheckCircle } from 'lucide-react'
 export default function Profil() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
-  const [reminderTime, setReminderTime] = useState('08:00')
   const [reminderEnabled, setReminderEnabled] = useState(true)
   const [urgentDays, setUrgentDays] = useState('1')
   const [monitorDays, setMonitorDays] = useState('7')
   const [saving, setSaving] = useState(false)
+
+  // Load saved settings from database on mount
+  useEffect(() => {
+    if (!user) return
+    supabase
+      .from('profiles')
+      .select('daily_reminder_enabled, urgent_days, monitor_days')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        console.log('Load profile data:', { data, error })
+        if (error) {
+          console.error('Load error:', error)
+        }
+        if (data) {
+          console.log('Setting values:', {
+            reminderEnabled: data.daily_reminder_enabled ?? true,
+            urgentDays: String(data.urgent_days ?? 1),
+            monitorDays: String(data.monitor_days ?? 7),
+          })
+          setReminderEnabled(data.daily_reminder_enabled ?? true)
+          setUrgentDays(String(data.urgent_days ?? 1))
+          setMonitorDays(String(data.monitor_days ?? 7))
+        } else {
+          console.log('No profile data found for user:', user.id)
+        }
+      })
+  }, [user])
 
   const handleSave = async () => {
     if (!user) return
     const urgent = Math.max(0, parseInt(urgentDays) || 1)
     const monitor = Math.max(urgent + 1, parseInt(monitorDays) || 7)
     setSaving(true)
-    const { error } = await supabase
+    console.log('Saving:', { id: user.id, urgent_days: urgent, monitor_days: monitor })
+    const { data, error } = await supabase
       .from('profiles')
-      .upsert({
-        id: user.id,
-        daily_reminder_time: reminderTime,
-        daily_reminder_enabled: reminderEnabled,
-        urgent_days: urgent,
-        monitor_days: monitor,
-      })
-    if (error) toast.error('Erreur lors de la sauvegarde')
-    else toast.success('Profil enregistré')
+      .upsert(
+        {
+          id: user.id,
+          daily_reminder_enabled: reminderEnabled,
+          urgent_days: urgent,
+          monitor_days: monitor,
+        },
+        { onConflict: 'id' }
+      )
+      .select()
+    console.log('Save response:', { data, error })
+    if (error) {
+      console.error('Save error:', error)
+      toast.error(`Erreur: ${error.message}`)
+    } else {
+      toast.success('Profil enregistré')
+    }
     setSaving(false)
   }
 
@@ -119,18 +155,6 @@ export default function Profil() {
               </button>
             </div>
 
-            {reminderEnabled && (
-              <div>
-                <label className="field-label">Heure d'envoi</label>
-                <input
-                  type="time"
-                  className="input-field"
-                  value={reminderTime}
-                  onChange={e => setReminderTime(e.target.value)}
-                  style={{ width: 'auto' }}
-                />
-              </div>
-            )}
 
             <button
               onClick={handleSave}
