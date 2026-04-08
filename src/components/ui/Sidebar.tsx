@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, CalendarClock, Upload, User, LogOut, Calendar } from 'lucide-react'
+import { LayoutDashboard, CalendarClock, Upload, User, LogOut, Calendar, BarChart3 } from 'lucide-react'
 import { OrdoLogo } from '../OrdoLogo'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -7,6 +7,7 @@ const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
   { to: '/today', icon: CalendarClock, label: "Aujourd'hui" },
   { to: '/calendar', icon: Calendar, label: 'Calendrier' },
+  { to: '/stats', icon: BarChart3, label: 'Statistiques' },
   { to: '/upload', icon: Upload, label: 'Nouveau dossier' },
 ]
 

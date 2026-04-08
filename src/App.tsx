@@ -12,6 +12,7 @@ import CaseDetail from './pages/CaseDetail'
 import Upload from './pages/Upload'
 import Profil from './pages/Profil'
 import Calendar from './pages/Calendar'
+import Stats from './pages/Stats'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -40,6 +41,7 @@ function AppRoutes() {
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/today" element={<ProtectedRoute><Today /></ProtectedRoute>} />
       <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
+      <Route path="/stats" element={<ProtectedRoute><Stats /></ProtectedRoute>} />
       <Route path="/dossier/:id" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
       <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
       <Route path="/profil" element={<ProtectedRoute><Profil /></ProtectedRoute>} />
