@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import { OrdoLogo } from '../components/OrdoLogo'
 import {
-  Shield, FileText, Mail, Calendar, Search, AlertTriangle,
   ArrowRight, CheckCircle, ChevronDown, Copy, Check
 } from 'lucide-react'
 import { useState } from 'react'
