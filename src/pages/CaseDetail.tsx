@@ -12,7 +12,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
   ArrowLeft, Pin, FileText, Calendar, Trash2,
-  Loader2, CheckCircle, ChevronDown, Plus, Download
+  Loader2, CheckCircle, ChevronDown, Plus, Download, Archive, ArchiveRestore
 } from 'lucide-react'
 
 export default function CaseDetail() {
@@ -75,6 +75,15 @@ export default function CaseDetail() {
     await supabase.from('cases').update({ pinned: updated }).eq('id', c.id)
     setCase(prev => prev ? { ...prev, pinned: updated } : prev)
     toast.success(updated ? 'Dossier épinglé' : 'Dossier désépinglé')
+  }
+
+  const toggleArchive = async () => {
+    if (!c) return
+    const updated = !c.archived
+    await supabase.from('cases').update({ archived: updated }).eq('id', c.id)
+    setCase(prev => prev ? { ...prev, archived: updated } : prev)
+    toast.success(updated ? 'Dossier archivé' : 'Dossier restauré')
+    if (updated) navigate('/dashboard')
   }
 
   const deleteCase = async () => {
@@ -140,6 +149,16 @@ export default function CaseDetail() {
             >
               <Pin size={14} fill={c.pinned ? '#1E293B' : 'none'} />
               {c.pinned ? 'Épinglé' : 'Épingler'}
+            </button>
+            <button
+              onClick={toggleArchive}
+              className="btn-ghost gap-1.5"
+              title={c.archived ? 'Restaurer' : 'Archiver'}
+            >
+              {c.archived
+                ? <><ArchiveRestore size={14} /> Restaurer</>
+                : <><Archive size={14} /> Archiver</>
+              }
             </button>
             <button onClick={deleteCase} className="btn-ghost" style={{ color: '#DC2626' }}>
               <Trash2 size={14} />

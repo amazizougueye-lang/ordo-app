@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 
 type SortKey = 'deadline' | 'created_at'
-type FilterStatus = CaseStatus | 'all'
+type FilterStatus = CaseStatus | 'all' | 'archived'
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -57,6 +57,8 @@ export default function Dashboard() {
     .filter(c => {
       const q = search.toLowerCase()
       if (q && !c.name.toLowerCase().includes(q) && !c.client_name.toLowerCase().includes(q)) return false
+      if (filter === 'archived') return c.archived
+      if (c.archived) return false
       if (filter !== 'all' && computeStatus(c.status, c.deadline, urgentDays, monitorDays) !== filter) return false
       return true
     })
@@ -133,7 +135,7 @@ export default function Dashboard() {
 
           {/* Status filter */}
           <div className="flex items-center gap-1">
-            {(['all', 'urgent', 'monitor', 'stable'] as const).map(s => (
+            {(['all', 'urgent', 'monitor', 'stable', 'archived'] as const).map(s => (
               <button
                 key={s}
                 onClick={() => setFilter(s)}
@@ -144,7 +146,7 @@ export default function Dashboard() {
                   border: `1px solid ${filter === s ? '#1E293B' : '#E2E8F0'}`,
                 }}
               >
-                {s === 'all' ? 'Tous' : s === 'urgent' ? 'Urgent' : s === 'monitor' ? 'Surveiller' : 'Actif'}
+                {s === 'all' ? 'Tous' : s === 'urgent' ? 'Urgent' : s === 'monitor' ? 'Surveiller' : s === 'archived' ? 'Archivés' : 'Actif'}
               </button>
             ))}
           </div>

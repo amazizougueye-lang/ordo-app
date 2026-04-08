@@ -8,6 +8,7 @@ export interface Case {
   status: CaseStatus
   deadline: string | null
   pinned: boolean
+  archived: boolean
   summary: string | null
   created_at: string
   updated_at: string
