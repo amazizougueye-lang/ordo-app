@@ -83,6 +83,16 @@ export default function Profil() {
               />
               <p className="text-[11px] mt-1" style={{ color: '#94A3B8' }}>Jours avant la deadline (doit être &gt; Urgent)</p>
             </div>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="btn-primary flex items-center gap-2"
+            >
+              {saving
+                ? <><Loader2 size={14} className="animate-spin" /> Enregistrement…</>
+                : <><CheckCircle size={14} /> Enregistrer</>
+              }
+            </button>
           </div>
         </div>
 
@@ -129,7 +139,7 @@ export default function Profil() {
             >
               {saving
                 ? <><Loader2 size={14} className="animate-spin" /> Enregistrement…</>
-                : <><CheckCircle size={14} /> Enregistrer</>
+                : <><CheckCircle size={14} /> Enregistrer rappel</>
               }
             </button>
           </div>
