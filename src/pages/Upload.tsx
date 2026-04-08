@@ -4,8 +4,9 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import { toast } from 'sonner'
-import { Upload as UploadIcon, FileText, X, Loader2, ChevronDown } from 'lucide-react'
+import { Upload as UploadIcon, FileText, X, Loader2, ChevronDown, Mail } from 'lucide-react'
 import type { CaseStatus, Case } from '../types'
+import { parseEmlFile } from '../lib/emailParser'
 
 export default function Upload() {
   const { user } = useAuth()
@@ -13,11 +14,13 @@ export default function Upload() {
   const [searchParams] = useSearchParams()
   const caseId = searchParams.get('case_id')
   const fileRef = useRef<HTMLInputElement>(null)
+  const emailRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [dragging, setDragging] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [existingCase, setExistingCase] = useState<Case | null>(null)
   const [loadingCase, setLoadingCase] = useState(!!caseId)
+  const [mode, setMode] = useState<'pdf' | 'email'>('pdf')
 
   // Case fields
   const [caseName, setCaseName] = useState('')
@@ -63,14 +66,34 @@ export default function Upload() {
   }, [caseId, user])
 
   const handleFile = (f: File) => {
-    if (f.type !== 'application/pdf') {
-      toast.error('Seuls les fichiers PDF sont acceptés')
-      return
+    if (mode === 'pdf') {
+      if (f.type !== 'application/pdf') {
+        toast.error('Seuls les fichiers PDF sont acceptés')
+        return
+      }
+      setFile(f)
+      if (!caseName) {
+        setCaseName(f.name.replace('.pdf', '').replace(/[-_]/g, ' '))
+      }
+    } else {
+      if (!f.name.endsWith('.eml')) {
+        toast.error('Seuls les fichiers .eml sont acceptés')
+        return
+      }
+      handleEmailFile(f)
     }
-    setFile(f)
-    // Auto-fill case name from filename
-    if (!caseName) {
-      setCaseName(f.name.replace('.pdf', '').replace(/[-_]/g, ' '))
+  }
+
+  const handleEmailFile = async (f: File) => {
+    try {
+      const parsed = await parseEmlFile(f)
+      setCaseName(parsed.subject)
+      setClientName(parsed.clientName)
+      setFile(f) // Store for later
+      toast.success('Email analysé - Remplissez les détails')
+    } catch (err) {
+      toast.error('Erreur lors de la lecture de l\'email')
+      console.error(err)
     }
   }
 
@@ -200,10 +223,39 @@ export default function Upload() {
           {existingCase ? 'Ajouter un document' : 'Nouveau dossier'}
         </h1>
 
+        {!existingCase && (
+          <div className="flex gap-2 mb-6">
+            <button
+              type="button"
+              onClick={() => { setMode('pdf'); setFile(null) }}
+              className="flex-1 px-3 py-2 rounded text-[13px] font-medium transition-colors"
+              style={{
+                background: mode === 'pdf' ? '#1E293B' : '#FFFFFF',
+                color: mode === 'pdf' ? '#FFFFFF' : '#475569',
+                border: `1px solid ${mode === 'pdf' ? '#1E293B' : '#E2E8F0'}`,
+              }}
+            >
+              <UploadIcon size={14} className="inline mr-1.5" /> PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode('email'); setFile(null) }}
+              className="flex-1 px-3 py-2 rounded text-[13px] font-medium transition-colors"
+              style={{
+                background: mode === 'email' ? '#1E293B' : '#FFFFFF',
+                color: mode === 'email' ? '#FFFFFF' : '#475569',
+                border: `1px solid ${mode === 'email' ? '#1E293B' : '#E2E8F0'}`,
+              }}
+            >
+              <Mail size={14} className="inline mr-1.5" /> Email
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Drop zone */}
           <div>
-            <p className="section-label mb-3">Document PDF</p>
+            <p className="section-label mb-3">{mode === 'pdf' ? 'Document PDF' : 'Fichier Email (.eml)'}</p>
             <div
               className="rounded-lg p-8 text-center cursor-pointer transition-all"
               style={{
@@ -213,7 +265,7 @@ export default function Upload() {
               onDragOver={e => { e.preventDefault(); setDragging(true) }}
               onDragLeave={() => setDragging(false)}
               onDrop={handleDrop}
-              onClick={() => !file && fileRef.current?.click()}
+              onClick={() => !file && (mode === 'pdf' ? fileRef.current?.click() : emailRef.current?.click())}
             >
               {file ? (
                 <div className="flex items-center justify-center gap-3">
@@ -229,10 +281,21 @@ export default function Upload() {
                 </div>
               ) : (
                 <>
-                  <UploadIcon size={24} className="mx-auto mb-3" style={{ color: '#CBD5E1' }} />
-                  <p className="text-[13px] font-medium" style={{ color: '#475569' }}>
-                    Glissez un PDF ici
-                  </p>
+                  {mode === 'pdf' ? (
+                    <>
+                      <UploadIcon size={24} className="mx-auto mb-3" style={{ color: '#CBD5E1' }} />
+                      <p className="text-[13px] font-medium" style={{ color: '#475569' }}>
+                        Glissez un PDF ici
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Mail size={24} className="mx-auto mb-3" style={{ color: '#CBD5E1' }} />
+                      <p className="text-[13px] font-medium" style={{ color: '#475569' }}>
+                        Glissez un email .eml ici
+                      </p>
+                    </>
+                  )}
                   <p className="text-[12px] mt-1" style={{ color: '#94A3B8' }}>
                     ou cliquez pour choisir un fichier
                   </p>
@@ -242,6 +305,13 @@ export default function Upload() {
                 ref={fileRef}
                 type="file"
                 accept="application/pdf"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+              />
+              <input
+                ref={emailRef}
+                type="file"
+                accept=".eml"
                 className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
               />
