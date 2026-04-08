@@ -6,7 +6,7 @@ import { AppLayout } from '../components/AppLayout'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { computeStatus } from '../lib/utils'
 import { useUrgencySettings } from '../hooks/useUrgencySettings'
-import type { Case, CaseStatus } from '../types'
+import type { Case, CaseStatus, CaseDeadline } from '../types'
 import { format, differenceInDays, isPast, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
@@ -22,6 +22,7 @@ export default function Dashboard() {
   const { urgentDays, monitorDays } = useUrgencySettings()
   const [cases, setCases] = useState<Case[]>([])
   const [notesMap, setNotesMap] = useState<Record<string, Note>>({})
+  const [deadlinesByCase, setDeadlinesByCase] = useState<Record<string, CaseDeadline[]>>({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterStatus>('all')
@@ -40,7 +41,12 @@ export default function Dashboard() {
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
-    ]).then(([{ data: casesData }, { data: notesData }]) => {
+      supabase
+        .from('case_deadlines')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('deadline', { ascending: true }),
+    ]).then(([{ data: casesData }, { data: notesData }, { data: deadlinesData }]) => {
       setCases((casesData as Case[]) || [])
       // Map dernière note par dossier
       const map: Record<string, Note> = {}
@@ -48,6 +54,13 @@ export default function Dashboard() {
         if (!map[note.case_id]) map[note.case_id] = note
       })
       setNotesMap(map)
+      // Map deadlines by case
+      const deadlineMap: Record<string, CaseDeadline[]> = {}
+      ;(deadlinesData as CaseDeadline[] || []).forEach(dl => {
+        if (!deadlineMap[dl.case_id]) deadlineMap[dl.case_id] = []
+        deadlineMap[dl.case_id].push(dl)
+      })
+      setDeadlinesByCase(deadlineMap)
       setLoading(false)
     })
   }, [user])
@@ -65,13 +78,27 @@ export default function Dashboard() {
     else { setSortKey(key); setSortAsc(true) }
   }
 
+  const getNearestDeadline = (c: Case): string | null => {
+    const allDeadlines = [
+      ...(c.deadline ? [c.deadline] : []),
+      ...(deadlinesByCase[c.id] || []).map(d => d.deadline)
+    ]
+    if (allDeadlines.length === 0) return null
+    return allDeadlines.reduce((nearest, current) => {
+      const currentTime = new Date(current).getTime()
+      const nearestTime = new Date(nearest).getTime()
+      return currentTime < nearestTime ? current : nearest
+    })
+  }
+
   const filtered = cases
     .filter(c => {
       const q = search.toLowerCase()
       if (q && !c.name.toLowerCase().includes(q) && !c.client_name.toLowerCase().includes(q)) return false
       if (filter === 'archived') return c.archived
       if (c.archived) return false
-      if (filter !== 'all' && computeStatus(c.status, c.deadline, urgentDays, monitorDays) !== filter) return false
+      const nearestDeadline = getNearestDeadline(c)
+      if (filter !== 'all' && computeStatus(c.status, nearestDeadline, urgentDays, monitorDays) !== filter) return false
       return true
     })
     .sort((a, b) => {
@@ -80,8 +107,8 @@ export default function Dashboard() {
       if (!a.pinned && b.pinned) return 1
 
       if (sortKey === 'deadline') {
-        const da = a.deadline ? new Date(a.deadline).getTime() : Infinity
-        const db = b.deadline ? new Date(b.deadline).getTime() : Infinity
+        const da = getNearestDeadline(a) ? new Date(getNearestDeadline(a)!).getTime() : Infinity
+        const db = getNearestDeadline(b) ? new Date(getNearestDeadline(b)!).getTime() : Infinity
         return sortAsc ? da - db : db - da
       }
       const da = new Date(a.created_at).getTime()
@@ -212,7 +239,8 @@ export default function Dashboard() {
         ) : (
           <div className="space-y-2">
             {filtered.map(c => {
-              const dl = deadlineLabel(c.deadline)
+              const nearestDeadline = getNearestDeadline(c)
+              const dl = deadlineLabel(nearestDeadline)
               return (
                 <Link
                   key={c.id}

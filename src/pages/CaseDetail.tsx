@@ -7,14 +7,14 @@ import { StatusBadge } from '../components/ui/StatusBadge'
 import { PDFViewer } from '../components/PDFViewer'
 import { computeStatus } from '../lib/utils'
 import { useUrgencySettings } from '../hooks/useUrgencySettings'
-import type { Case, Document, CaseStatus, Note } from '../types'
+import type { Case, Document, CaseStatus, Note, CaseDeadline } from '../types'
 import { toast } from 'sonner'
-import { format } from 'date-fns'
+import { format, differenceInDays, isPast, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
   ArrowLeft, Pin, FileText, Calendar, Trash2,
   Loader2, CheckCircle, ChevronDown, Plus, Download, Archive, ArchiveRestore,
-  MessageSquare, Send
+  MessageSquare, Send, Clock
 } from 'lucide-react'
 
 export default function CaseDetail() {
@@ -40,6 +40,10 @@ export default function CaseDetail() {
   const [savingNote, setSavingNote] = useState(false)
   const [caseType, setCaseType] = useState('')
   const [caseTypeCustom, setCaseTypeCustom] = useState('')
+  const [caseDeadlines, setCaseDeadlines] = useState<CaseDeadline[]>([])
+  const [newDeadlineName, setNewDeadlineName] = useState('')
+  const [newDeadlineDate, setNewDeadlineDate] = useState('')
+  const [savingDeadline, setSavingDeadline] = useState(false)
 
   const CASE_TYPES = [
     { value: 'civil', label: 'Civil' },
@@ -60,7 +64,8 @@ export default function CaseDetail() {
       supabase.from('cases').select('*').eq('id', id).maybeSingle(),
       supabase.from('documents').select('*').eq('case_id', id).order('created_at', { ascending: false }),
       supabase.from('notes').select('*').eq('case_id', id).order('created_at', { ascending: true }),
-    ]).then(([{ data: caseData }, { data: docsData }, { data: notesData }]) => {
+      supabase.from('case_deadlines').select('*').eq('case_id', id).order('deadline', { ascending: true }),
+    ]).then(([{ data: caseData }, { data: docsData }, { data: notesData }, { data: deadlinesData }]) => {
       if (caseData) {
         const d = caseData as Case
         setCase(d)
@@ -74,6 +79,7 @@ export default function CaseDetail() {
       }
       setDocs((docsData as Document[]) || [])
       setNotes((notesData as Note[]) || [])
+      setCaseDeadlines((deadlinesData as CaseDeadline[]) || [])
       setLoading(false)
     })
   }, [id, user])
@@ -114,6 +120,56 @@ export default function CaseDetail() {
   const deleteNote = async (noteId: string) => {
     await supabase.from('notes').delete().eq('id', noteId)
     setNotes(prev => prev.filter(n => n.id !== noteId))
+  }
+
+  const addDeadline = async () => {
+    if (!c || !user || !newDeadlineName.trim() || !newDeadlineDate) return
+    setSavingDeadline(true)
+    const { data, error } = await supabase
+      .from('case_deadlines')
+      .insert({
+        case_id: c.id,
+        user_id: user.id,
+        name: newDeadlineName.trim(),
+        deadline: newDeadlineDate,
+      })
+      .select()
+      .single()
+    if (error) toast.error('Erreur')
+    else {
+      setCaseDeadlines(prev => [...prev, data as CaseDeadline].sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime()))
+      setNewDeadlineName('')
+      setNewDeadlineDate('')
+    }
+    setSavingDeadline(false)
+  }
+
+  const deleteDeadline = async (deadlineId: string) => {
+    await supabase.from('case_deadlines').delete().eq('id', deadlineId)
+    setCaseDeadlines(prev => prev.filter(d => d.id !== deadlineId))
+  }
+
+  const getNearestDeadline = () => {
+    const allDeadlines = [
+      ...(c?.deadline ? [{ name: 'Principal', deadline: c.deadline }] : []),
+      ...caseDeadlines.map(d => ({ name: d.name, deadline: d.deadline }))
+    ]
+    if (allDeadlines.length === 0) return null
+    return allDeadlines.reduce((nearest, current) => {
+      const currentDate = new Date(current.deadline).getTime()
+      const nearestDate = new Date(nearest.deadline).getTime()
+      return currentDate < nearestDate ? current : nearest
+    })
+  }
+
+  const deadlineLabel = (deadlineStr: string | null) => {
+    if (!deadlineStr) return null
+    const d = new Date(deadlineStr)
+    const diff = differenceInDays(d, new Date())
+    if (isPast(d) && !isToday(d)) return { text: `En retard (${format(d, 'd MMM', { locale: fr })})`, color: '#DC2626' }
+    if (isToday(d)) return { text: "Aujourd'hui", color: '#D97706' }
+    if (diff <= 3) return { text: `Dans ${diff}j`, color: '#D97706' }
+    return { text: format(d, 'd MMM yyyy', { locale: fr }), color: '#475569' }
   }
 
   const togglePin = async () => {
@@ -228,28 +284,40 @@ export default function CaseDetail() {
           </div>
         </div>
 
-        {/* Title */}
-        <div className="mb-7">
-          <div className="flex items-center gap-2 mb-1">
-            <StatusBadge status={computeStatus(c.status, c.deadline, urgentDays, monitorDays)} />
-            {c.case_number && (
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded" style={{ background: '#F1F5F9', color: '#64748B' }}>
-                #{c.case_number}
-              </span>
-            )}
-            {c.case_type && (
-              <span className="text-[11px] px-2 py-0.5 rounded capitalize" style={{ background: '#EFF6FF', color: '#3B82F6' }}>
-                {c.case_type}
-              </span>
-            )}
+        {/* Title + Deadline Header */}
+        <div className="flex items-start justify-between mb-7">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <StatusBadge status={computeStatus(c.status, c.deadline, urgentDays, monitorDays)} />
+              {c.case_number && (
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded" style={{ background: '#F1F5F9', color: '#64748B' }}>
+                  #{c.case_number}
+                </span>
+              )}
+              {c.case_type && (
+                <span className="text-[11px] px-2 py-0.5 rounded capitalize" style={{ background: '#EFF6FF', color: '#3B82F6' }}>
+                  {c.case_type}
+                </span>
+              )}
+            </div>
+            <h1
+              className="text-[24px] font-semibold mt-2"
+              style={{ color: '#0F172A', letterSpacing: '-0.02em' }}
+            >
+              {c.name}
+            </h1>
+            <p className="text-[13px] mt-1" style={{ color: '#94A3B8' }}>{c.client_name}</p>
           </div>
-          <h1
-            className="text-[24px] font-semibold mt-2"
-            style={{ color: '#0F172A', letterSpacing: '-0.02em' }}
-          >
-            {c.name}
-          </h1>
-          <p className="text-[13px] mt-1" style={{ color: '#94A3B8' }}>{c.client_name}</p>
+          {(() => {
+            const nearest = getNearestDeadline()
+            const dl = nearest ? deadlineLabel(nearest.deadline) : null
+            return dl ? (
+              <div className="text-right">
+                <p className="text-[11px] mb-1" style={{ color: '#94A3B8' }}>Prochain délai</p>
+                <p className="text-[13px] font-medium" style={{ color: dl.color }}>{dl.text}</p>
+              </div>
+            ) : null
+          })()}
         </div>
 
         {/* Summary */}
@@ -327,6 +395,68 @@ export default function CaseDetail() {
                 ? <><Loader2 size={14} className="animate-spin" /> Enregistrement…</>
                 : <><CheckCircle size={14} /> Sauvegarder</>
               }
+            </button>
+          </div>
+        </div>
+
+        {/* Deadlines */}
+        <div className="card p-5 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock size={14} style={{ color: '#94A3B8' }} />
+            <p className="section-label">Délais ({caseDeadlines.length + (c?.deadline ? 1 : 0)})</p>
+          </div>
+          <div className="space-y-2 mb-4">
+            {c?.deadline && (
+              <div className="flex items-center justify-between px-4 py-3 rounded-lg" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                <div>
+                  <p className="text-[13px] font-medium" style={{ color: '#0F172A' }}>Principal</p>
+                  <p className="text-[12px]" style={{ color: '#94A3B8' }}>{format(new Date(c.deadline), 'd MMM yyyy', { locale: fr })}</p>
+                </div>
+                {(() => {
+                  const dl = deadlineLabel(c.deadline)
+                  return dl ? <span className="text-[11px] font-medium" style={{ color: dl.color }}>{dl.text}</span> : null
+                })()}
+              </div>
+            )}
+            {caseDeadlines.map(cd => {
+              const dl = deadlineLabel(cd.deadline)
+              return (
+                <div key={cd.id} className="flex items-center justify-between px-4 py-3 rounded-lg" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0' }}>
+                  <div>
+                    <p className="text-[13px] font-medium" style={{ color: '#0F172A' }}>{cd.name}</p>
+                    <p className="text-[12px]" style={{ color: '#94A3B8' }}>{format(new Date(cd.deadline), 'd MMM yyyy', { locale: fr })}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {dl && <span className="text-[11px] font-medium" style={{ color: dl.color }}>{dl.text}</span>}
+                    <button onClick={() => deleteDeadline(cd.id)} style={{ color: '#CBD5E1' }} className="hover:text-red-400 transition-colors">
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              className="input-field flex-1"
+              placeholder="Nom du délai (ex: Audience tribunal)"
+              value={newDeadlineName}
+              onChange={e => setNewDeadlineName(e.target.value)}
+            />
+            <input
+              type="date"
+              className="input-field"
+              value={newDeadlineDate}
+              onChange={e => setNewDeadlineDate(e.target.value)}
+            />
+            <button
+              onClick={addDeadline}
+              disabled={savingDeadline || !newDeadlineName.trim() || !newDeadlineDate}
+              className="btn-primary gap-1.5"
+              style={{ padding: '0 14px' }}
+            >
+              {savingDeadline ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
             </button>
           </div>
         </div>

@@ -57,3 +57,13 @@ export interface CpcDeadline {
   label: string
   days: number
 }
+
+export interface CaseDeadline {
+  id: string
+  case_id: string
+  user_id: string
+  name: string
+  deadline: string
+  created_at: string
+  updated_at: string
+}
