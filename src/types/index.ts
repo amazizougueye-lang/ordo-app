@@ -9,6 +9,8 @@ export interface Case {
   deadline: string | null
   pinned: boolean
   archived: boolean
+  case_type: string
+  case_number: string | null
   summary: string | null
   created_at: string
   updated_at: string
@@ -24,6 +26,14 @@ export interface Document {
   summary: string | null
   extracted_date: string | null
   doc_type: string | null
+  created_at: string
+}
+
+export interface Note {
+  id: string
+  case_id: string
+  user_id: string
+  content: string
   created_at: string
 }
 

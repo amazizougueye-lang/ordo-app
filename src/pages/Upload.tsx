@@ -23,6 +23,20 @@ export default function Upload() {
   const [caseName, setCaseName] = useState('')
   const [clientName, setClientName] = useState('')
   const [status, setStatus] = useState<CaseStatus>('stable')
+  const [caseType, setCaseType] = useState('civil')
+  const [caseTypeCustom, setCaseTypeCustom] = useState('')
+
+  const CASE_TYPES = [
+    { value: 'civil', label: 'Civil' },
+    { value: 'penal', label: 'Pénal' },
+    { value: 'familial', label: 'Familial' },
+    { value: 'commercial', label: 'Commercial' },
+    { value: 'immobilier', label: 'Immobilier' },
+    { value: 'travail', label: 'Travail' },
+    { value: 'immigration', label: 'Immigration' },
+    { value: 'administratif', label: 'Administratif' },
+    { value: 'autre', label: 'Autre…' },
+  ]
 
   // Load existing case if case_id in URL
   useEffect(() => {
@@ -95,6 +109,15 @@ export default function Upload() {
         }).eq('id', existingCase.id)
         caseIdToUse = existingCase.id
       } else {
+        // Générer numéro de dossier unique (YYYY-NNN)
+        const year = new Date().getFullYear()
+        const { count } = await supabase
+          .from('cases')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+        const caseNumber = `${year}-${String((count || 0) + 1).padStart(3, '0')}`
+        const finalType = caseType === 'autre' ? (caseTypeCustom.trim() || 'autre') : caseType
+
         // Create new case
         const { data: newCase, error: caseError } = await supabase
           .from('cases')
@@ -104,6 +127,8 @@ export default function Upload() {
             client_name: clientName.trim(),
             status,
             pinned: false,
+            case_type: finalType,
+            case_number: caseNumber,
           })
           .select()
           .single()
@@ -246,6 +271,29 @@ export default function Upload() {
                   onChange={e => setClientName(e.target.value)}
                   required
                 />
+              </div>
+              <div>
+                <label className="field-label">Type de dossier</label>
+                <div className="relative">
+                  <select
+                    className="input-field appearance-none pr-8"
+                    value={caseType}
+                    onChange={e => setCaseType(e.target.value)}
+                  >
+                    {CASE_TYPES.map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#94A3B8' }} />
+                </div>
+                {caseType === 'autre' && (
+                  <input
+                    className="input-field mt-2"
+                    placeholder="Précisez le type de dossier…"
+                    value={caseTypeCustom}
+                    onChange={e => setCaseTypeCustom(e.target.value)}
+                  />
+                )}
               </div>
               <div>
                 <label className="field-label">Statut initial</label>

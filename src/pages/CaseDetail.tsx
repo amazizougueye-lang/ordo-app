@@ -6,13 +6,14 @@ import { AppLayout } from '../components/AppLayout'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { computeStatus } from '../lib/utils'
 import { useUrgencySettings } from '../hooks/useUrgencySettings'
-import type { Case, Document, CaseStatus } from '../types'
+import type { Case, Document, CaseStatus, Note } from '../types'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
   ArrowLeft, Pin, FileText, Calendar, Trash2,
-  Loader2, CheckCircle, ChevronDown, Plus, Download, Archive, ArchiveRestore
+  Loader2, CheckCircle, ChevronDown, Plus, Download, Archive, ArchiveRestore,
+  MessageSquare, Send
 } from 'lucide-react'
 
 export default function CaseDetail() {
@@ -31,13 +32,32 @@ export default function CaseDetail() {
   const [status, setStatus] = useState<CaseStatus>('stable')
   const [deadline, setDeadline] = useState('')
   const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null)
+  const [notes, setNotes] = useState<Note[]>([])
+  const [newNote, setNewNote] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
+  const [caseType, setCaseType] = useState('')
+  const [caseTypeCustom, setCaseTypeCustom] = useState('')
+
+  const CASE_TYPES = [
+    { value: 'civil', label: 'Civil' },
+    { value: 'penal', label: 'Pénal' },
+    { value: 'familial', label: 'Familial' },
+    { value: 'commercial', label: 'Commercial' },
+    { value: 'immobilier', label: 'Immobilier' },
+    { value: 'travail', label: 'Travail' },
+    { value: 'immigration', label: 'Immigration' },
+    { value: 'administratif', label: 'Administratif' },
+    { value: 'autre', label: 'Autre…' },
+  ]
+  const KNOWN_TYPES = CASE_TYPES.map(t => t.value)
 
   useEffect(() => {
     if (!id || !user) return
     Promise.all([
       supabase.from('cases').select('*').eq('id', id).maybeSingle(),
       supabase.from('documents').select('*').eq('case_id', id).order('created_at', { ascending: false }),
-    ]).then(([{ data: caseData }, { data: docsData }]) => {
+      supabase.from('notes').select('*').eq('case_id', id).order('created_at', { ascending: true }),
+    ]).then(([{ data: caseData }, { data: docsData }, { data: notesData }]) => {
       if (caseData) {
         const d = caseData as Case
         setCase(d)
@@ -45,8 +65,12 @@ export default function CaseDetail() {
         setClientName(d.client_name)
         setStatus(d.status)
         setDeadline(d.deadline?.slice(0, 10) || '')
+        const t = d.case_type || 'civil'
+        if (KNOWN_TYPES.includes(t)) { setCaseType(t) }
+        else { setCaseType('autre'); setCaseTypeCustom(t) }
       }
       setDocs((docsData as Document[]) || [])
+      setNotes((notesData as Note[]) || [])
       setLoading(false)
     })
   }, [id, user])
@@ -54,6 +78,7 @@ export default function CaseDetail() {
   const handleSave = async () => {
     if (!c) return
     setSaving(true)
+    const finalType = caseType === 'autre' ? (caseTypeCustom.trim() || 'autre') : caseType
     const { error } = await supabase
       .from('cases')
       .update({
@@ -61,12 +86,31 @@ export default function CaseDetail() {
         client_name: clientName,
         status,
         deadline: deadline || null,
+        case_type: finalType,
         updated_at: new Date().toISOString(),
       })
       .eq('id', c.id)
     if (error) toast.error('Erreur lors de la sauvegarde')
-    else { toast.success('Dossier mis à jour'); setCase(prev => prev ? { ...prev, name, client_name: clientName, status, deadline } : prev) }
+    else { toast.success('Dossier mis à jour'); setCase(prev => prev ? { ...prev, name, client_name: clientName, status, deadline, case_type: finalType } : prev) }
     setSaving(false)
+  }
+
+  const addNote = async () => {
+    if (!c || !user || !newNote.trim()) return
+    setSavingNote(true)
+    const { data, error } = await supabase
+      .from('notes')
+      .insert({ case_id: c.id, user_id: user.id, content: newNote.trim() })
+      .select()
+      .single()
+    if (error) toast.error('Erreur')
+    else { setNotes(prev => [...prev, data as Note]); setNewNote('') }
+    setSavingNote(false)
+  }
+
+  const deleteNote = async (noteId: string) => {
+    await supabase.from('notes').delete().eq('id', noteId)
+    setNotes(prev => prev.filter(n => n.id !== noteId))
   }
 
   const togglePin = async () => {
@@ -168,7 +212,19 @@ export default function CaseDetail() {
 
         {/* Title */}
         <div className="mb-7">
-          <StatusBadge status={computeStatus(c.status, c.deadline, urgentDays, monitorDays)} />
+          <div className="flex items-center gap-2 mb-1">
+            <StatusBadge status={computeStatus(c.status, c.deadline, urgentDays, monitorDays)} />
+            {c.case_number && (
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded" style={{ background: '#F1F5F9', color: '#64748B' }}>
+                #{c.case_number}
+              </span>
+            )}
+            {c.case_type && (
+              <span className="text-[11px] px-2 py-0.5 rounded capitalize" style={{ background: '#EFF6FF', color: '#3B82F6' }}>
+                {c.case_type}
+              </span>
+            )}
+          </div>
           <h1
             className="text-[24px] font-semibold mt-2"
             style={{ color: '#0F172A', letterSpacing: '-0.02em' }}
@@ -217,6 +273,29 @@ export default function CaseDetail() {
               </div>
             </div>
             <div>
+              <label className="field-label">Type de dossier</label>
+              <div className="relative">
+                <select
+                  className="input-field appearance-none pr-8"
+                  value={caseType}
+                  onChange={e => setCaseType(e.target.value)}
+                >
+                  {CASE_TYPES.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#94A3B8' }} />
+              </div>
+              {caseType === 'autre' && (
+                <input
+                  className="input-field mt-2"
+                  placeholder="Précisez le type…"
+                  value={caseTypeCustom}
+                  onChange={e => setCaseTypeCustom(e.target.value)}
+                />
+              )}
+            </div>
+            <div>
               <label className="field-label">Délai principal</label>
               <input
                 type="date"
@@ -230,6 +309,50 @@ export default function CaseDetail() {
                 ? <><Loader2 size={14} className="animate-spin" /> Enregistrement…</>
                 : <><CheckCircle size={14} /> Sauvegarder</>
               }
+            </button>
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <MessageSquare size={14} style={{ color: '#94A3B8' }} />
+            <p className="section-label">Notes ({notes.length})</p>
+          </div>
+          <div className="space-y-2 mb-3">
+            {notes.map(note => (
+              <div
+                key={note.id}
+                className="flex items-start gap-3 px-4 py-3 rounded-lg"
+                style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}
+              >
+                <p className="flex-1 text-[13px] leading-relaxed" style={{ color: '#0F172A' }}>{note.content}</p>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px]" style={{ color: '#94A3B8' }}>
+                    {format(new Date(note.created_at), 'd MMM', { locale: fr })}
+                  </span>
+                  <button onClick={() => deleteNote(note.id)} style={{ color: '#CBD5E1' }} className="hover:text-red-400 transition-colors">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              className="input-field flex-1"
+              placeholder="Ajouter une note…"
+              value={newNote}
+              onChange={e => setNewNote(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addNote()}
+            />
+            <button
+              onClick={addNote}
+              disabled={savingNote || !newNote.trim()}
+              className="btn-primary gap-1.5"
+              style={{ padding: '0 14px' }}
+            >
+              {savingNote ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             </button>
           </div>
         </div>
