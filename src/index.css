@@ -124,4 +124,64 @@
     height: 1px;
     background: #E2E8F0;
   }
+
+  /* Premium card with hover elevation */
+  .card-premium {
+    @apply rounded-xl bg-white p-6 transition-all duration-300;
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card-premium:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+    border-color: #CBD5E1;
+  }
+
+  /* Glow button */
+  .btn-glow {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-[14px] font-semibold transition-all duration-300;
+    background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+    color: white;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.2);
+  }
+  .btn-glow:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 30px rgba(15, 23, 42, 0.3);
+  }
+
+  /* Dashboard preview 3D effect */
+  .dashboard-preview {
+    transform: perspective(1200px) rotateX(2deg);
+    transform-origin: center bottom;
+  }
+  .dashboard-preview:hover {
+    transform: perspective(1200px) rotateX(0deg);
+  }
+}
+
+/* Accordion animations */
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+.animate-accordion-down {
+  animation: accordion-down 0.2s ease-out;
+}
+
+.animate-accordion-up {
+  animation: accordion-up 0.2s ease-out;
 }
