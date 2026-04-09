@@ -8,7 +8,7 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
 
-async function refreshAccessToken(supabase: ReturnType<typeof createClient>, userId: string, refreshToken: string) {
+async function refreshAccessToken(supabase: any, userId: string, refreshToken: string) {
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -26,11 +26,12 @@ async function refreshAccessToken(supabase: ReturnType<typeof createClient>, use
     throw new Error('TOKEN_REVOKED')
   }
   const expiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString()
-  await supabase.from('google_tokens').update({
+  const updateData: any = {
     access_token: data.access_token,
     token_expires_at: expiresAt,
     updated_at: new Date().toISOString(),
-  }).eq('user_id', userId)
+  }
+  await supabase.from('google_tokens').update(updateData).eq('user_id', userId)
   return data.access_token
 }
 
@@ -40,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const authHeader = req.headers.authorization
   if (!authHeader?.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' })
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY) as any
   const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.split(' ')[1])
   if (authError || !user) return res.status(401).json({ error: 'Invalid token' })
 
