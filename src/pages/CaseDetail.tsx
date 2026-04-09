@@ -7,7 +7,6 @@ import { StatusBadge } from '../components/ui/StatusBadge'
 import { PDFViewer } from '../components/PDFViewer'
 import { computeStatus } from '../lib/utils'
 import { useUrgencySettings } from '../hooks/useUrgencySettings'
-import { useGoogleCalendarSync } from '../hooks/useGoogleCalendarSync'
 import type { Case, Document, CaseStatus, Note, CaseDeadline } from '../types'
 import { toast } from 'sonner'
 import { format, differenceInDays, isPast, isToday } from 'date-fns'
@@ -22,7 +21,6 @@ export default function CaseDetail() {
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
   const { urgentDays, monitorDays } = useUrgencySettings()
-  const gcal = useGoogleCalendarSync()
   const navigate = useNavigate()
   const [c, setCase] = useState<Case | null>(null)
   const [docs, setDocs] = useState<Document[]>([])
@@ -105,18 +103,7 @@ export default function CaseDetail() {
       })
       .eq('id', c.id)
     if (error) toast.error('Erreur lors de la sauvegarde')
-    else {
-      toast.success('Dossier mis à jour')
-      setCase(prev => prev ? { ...prev, name, client_name: clientName, status, deadline, deadline_name: deadlineName, case_type: finalType } : prev)
-      // Sync main deadline to Google Calendar
-      if (deadline && deadlineName) {
-        const eventId = await gcal.syncDeadline(name, clientName, deadlineName, deadline, c.google_event_id)
-        if (eventId && eventId !== c.google_event_id) {
-          await supabase.from('cases').update({ google_event_id: eventId }).eq('id', c.id)
-          setCase(prev => prev ? { ...prev, google_event_id: eventId } : prev)
-        }
-      }
-    }
+    else { toast.success('Dossier mis à jour'); setCase(prev => prev ? { ...prev, name, client_name: clientName, status, deadline, deadline_name: deadlineName, case_type: finalType } : prev) }
     setSaving(false)
   }
 
@@ -152,24 +139,11 @@ export default function CaseDetail() {
       .select()
       .single()
     if (error) toast.error('Erreur')
-    else {
-      const newDl = data as CaseDeadline
-      // Sync new deadline to Google Calendar
-      const eventId = await gcal.syncDeadline(c.name, c.client_name, newDl.name, newDl.deadline)
-      if (eventId) {
-        await supabase.from('case_deadlines').update({ google_event_id: eventId }).eq('id', newDl.id)
-        newDl.google_event_id = eventId
-      }
-      setCaseDeadlines(prev => [...prev, newDl].sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime()))
-      setNewDeadlineName('')
-      setNewDeadlineDate('')
-    }
+    else { setCaseDeadlines(prev => [...prev, data as CaseDeadline].sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())); setNewDeadlineName(''); setNewDeadlineDate('') }
     setSavingDeadline(false)
   }
 
   const deleteDeadline = async (deadlineId: string) => {
-    const dl = caseDeadlines.find(d => d.id === deadlineId)
-    if (dl?.google_event_id) await gcal.deleteEvent(dl.google_event_id)
     await supabase.from('case_deadlines').delete().eq('id', deadlineId)
     setCaseDeadlines(prev => prev.filter(d => d.id !== deadlineId))
   }
@@ -216,11 +190,6 @@ export default function CaseDetail() {
 
   const deleteCase = async () => {
     if (!c || !confirm('Supprimer ce dossier et tous ses documents ?')) return
-    // Delete Google Calendar events
-    if (c.google_event_id) await gcal.deleteEvent(c.google_event_id)
-    for (const dl of caseDeadlines) {
-      if (dl.google_event_id) await gcal.deleteEvent(dl.google_event_id)
-    }
     await supabase.from('documents').delete().eq('case_id', c.id)
     await supabase.from('cases').delete().eq('id', c.id)
     toast.success('Dossier supprimé')

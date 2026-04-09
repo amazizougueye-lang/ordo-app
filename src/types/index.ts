@@ -16,7 +16,6 @@ export interface Case {
   created_at: string
   updated_at: string
   last_document_at: string | null
-  google_event_id?: string | null
 }
 
 export interface Document {
@@ -66,19 +65,6 @@ export interface CaseDeadline {
   user_id: string
   name: string
   deadline: string
-  created_at: string
-  updated_at: string
-  google_event_id?: string | null
-}
-
-export interface GoogleToken {
-  id: string
-  user_id: string
-  access_token: string
-  refresh_token: string
-  token_expires_at: string
-  google_email: string | null
-  calendar_sync_enabled: boolean
   created_at: string
   updated_at: string
 }
