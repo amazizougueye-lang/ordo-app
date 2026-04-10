@@ -2,11 +2,13 @@ import { Link } from 'react-router-dom'
 import { OrdoLogo } from '../components/OrdoLogo'
 import { BackgroundPaths } from '../components/landing/BackgroundPaths'
 import { WavePath } from '../components/landing/WavePath'
+import { HowItWorks } from '../components/landing/HowItWorks'
+import { FeaturesGrid } from '../components/landing/FeaturesGrid'
+import { MetricsSection } from '../components/landing/MetricsSection'
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../components/ui/Accordion'
 import { motion } from 'framer-motion'
 import {
-  Shield, FileText, Mail, Search,
-  ArrowRight, CheckCircle, AlertTriangle, X, Eye, Zap, Lock
+  ArrowRight, CheckCircle, X
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
@@ -30,41 +32,6 @@ function Reveal({ children, delay = 0, className = '' }: {
 }
 
 /* ─── Data ─── */
-const features = [
-  {
-    icon: Eye,
-    title: 'Tout voir en un coup d\'oeil',
-    desc: 'Vue Aujourd\'hui avec urgences visibles et statuts clairs. Comprenez en 10 secondes ce qui est urgent, ce qui arrive, ce qui peut attendre.',
-    color: '#DC2626',
-  },
-  {
-    icon: Zap,
-    title: 'Automatisation intelligente',
-    desc: 'Extraction IA des délais, centralisation des dossiers, moins de saisie manuelle. Déposez un PDF et laissez Ordo faire le reste.',
-    color: '#3B82F6',
-  },
-  {
-    icon: Lock,
-    title: 'Rester en contrôle',
-    desc: 'Validation par l\'avocat avant toute action. Rappels quotidiens et organisation fiable. Vos dossiers, vos règles.',
-    color: '#16A34A',
-  },
-]
-
-const detailedFeatures = [
-  { icon: AlertTriangle, title: "Vue Aujourd'hui", desc: "Comprenez en 10 secondes ce qui est urgent.", color: '#DC2626' },
-  { icon: FileText, title: 'Extraction IA', desc: "Déposez un PDF, l'IA extrait les dates clés.", color: '#3B82F6' },
-  { icon: Mail, title: 'Courriel quotidien', desc: 'Chaque matin, un résumé scannable en 10 secondes.', color: '#16A34A' },
-  { icon: Search, title: 'Recherche instantanée', desc: "Retrouvez n'importe quel dossier en secondes.", color: '#D97706' },
-  { icon: Shield, title: 'Confidentialité totale', desc: "Vos données ne servent jamais à entraîner un modèle. Conforme à la Loi 25.", color: '#0F172A' },
-]
-
-const stats = [
-  { value: '10 min', label: 'pour être opérationnel' },
-  { value: '< 10s', label: 'pour comprendre un dossier' },
-  { value: '0', label: 'compétence IT requise' },
-  { value: '100%', label: 'en français juridique québécois' },
-]
 
 const problems = [
   'Les délais sont dispersés dans vos emails et documents',
@@ -149,12 +116,14 @@ export default function Landing() {
 
           <Reveal delay={0.1}>
             <h1
-              className="text-[40px] md:text-[52px] font-bold leading-[1.1] mb-6"
+              className="text-[44px] md:text-[64px] font-black leading-[1.05] mb-6"
               style={{ color: '#0F172A', letterSpacing: '-0.03em' }}
             >
-              Ne ratez plus jamais
+              Votre calendrier
               <br />
-              un délai juridique.
+              juridique
+              <br />
+              parfait commence ici.
             </h1>
           </Reveal>
 
@@ -317,6 +286,14 @@ export default function Landing() {
         </Reveal>
       </section>
 
+      <HowItWorks />
+
+      {/* ━━━ FEATURES GRID (6 items) ━━━ */}
+      <FeaturesGrid />
+
+      {/* ━━━ METRICS ━━━ */}
+      <MetricsSection />
+
       <WavePath />
 
       {/* ━━━ PROBLEM → SOLUTION ━━━ */}
@@ -384,88 +361,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ━━━ CORE FEATURES (3 blocs) ━━━ */}
-      <section id="features" className="py-20" style={{ background: '#F8FAFC' }}>
-        <div className="max-w-4xl mx-auto px-6">
-          <Reveal>
-            <p className="text-center text-[12px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#94A3B8' }}>
-              Fonctionnalités
-            </p>
-            <h2 className="text-center text-[28px] md:text-[32px] font-bold mb-12" style={{ color: '#0F172A', letterSpacing: '-0.03em' }}>
-              L'essentiel, parfaitement exécuté.
-            </h2>
-          </Reveal>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {features.map(({ icon: Icon, title, desc, color }, i) => (
-              <Reveal key={title} delay={0.1 + i * 0.1}>
-                <motion.div
-                  className="rounded-2xl p-6 h-full cursor-default"
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                  }}
-                  whileHover={{
-                    y: -4,
-                    boxShadow: '0 12px 40px rgba(0,0,0,0.06)',
-                    borderColor: '#CBD5E1',
-                  }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center mb-5"
-                    style={{ background: `${color}10` }}
-                  >
-                    <Icon size={18} style={{ color }} />
-                  </div>
-                  <p className="text-[15px] font-semibold mb-2" style={{ color: '#0F172A' }}>{title}</p>
-                  <p className="text-[13px] leading-relaxed" style={{ color: '#475569' }}>{desc}</p>
-                </motion.div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ━━━ DETAILED FEATURES (6 small) ━━━ */}
-      <section className="py-20">
-        <div className="max-w-4xl mx-auto px-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {detailedFeatures.map(({ icon: Icon, title, desc, color }, i) => (
-              <Reveal key={title} delay={i * 0.08}>
-                <div className="flex items-start gap-3.5 p-4 rounded-xl transition-colors duration-200 hover:bg-slate-50">
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                    style={{ background: `${color}10` }}
-                  >
-                    <Icon size={14} style={{ color }} />
-                  </div>
-                  <div>
-                    <p className="text-[13px] font-semibold mb-1" style={{ color: '#0F172A' }}>{title}</p>
-                    <p className="text-[12px] leading-relaxed" style={{ color: '#475569' }}>{desc}</p>
-                  </div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ━━━ METRICS ━━━ */}
-      <section style={{ background: '#0F172A' }} className="py-20">
-        <div className="max-w-4xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          {stats.map(({ value, label }, i) => (
-            <Reveal key={label} delay={i * 0.1}>
-              <div>
-                <p className="text-[36px] md:text-[42px] font-bold mb-1" style={{ color: '#FFFFFF', letterSpacing: '-0.03em' }}>
-                  {value}
-                </p>
-                <p className="text-[13px]" style={{ color: '#64748B' }}>{label}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
 
       {/* ━━━ DIFFERENTIATION ━━━ */}
       <section className="py-20" style={{ background: '#F8FAFC' }}>
