@@ -68,6 +68,8 @@ export interface CaseDeadline {
   name: string
   deadline: string
   urgency: DeadlineUrgency
+  monitor_days: number | null
+  urgent_days: number | null
   completed: boolean
   snoozed_until: string | null
   created_at: string

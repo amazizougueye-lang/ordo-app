@@ -36,6 +36,8 @@ export default function CaseDetail() {
   const [deadline, setDeadline] = useState('')
   const [deadlineName, setDeadlineName] = useState('')
   const [deadlineUrgency, setDeadlineUrgency] = useState<DeadlineUrgency>('stable')
+  const [deadlineMonitorDays, setDeadlineMonitorDays] = useState('7')
+  const [deadlineUrgentDays, setDeadlineUrgentDays] = useState('3')
   const [caseType, setCaseType] = useState('')
   const [caseTypeCustom, setCaseTypeCustom] = useState('')
   const [caseNumber, setCaseNumber] = useState('')
@@ -50,6 +52,8 @@ export default function CaseDetail() {
   const [newDeadlineName, setNewDeadlineName] = useState('')
   const [newDeadlineDate, setNewDeadlineDate] = useState('')
   const [newDeadlineUrgency, setNewDeadlineUrgency] = useState<DeadlineUrgency>('stable')
+  const [newDeadlineMonitorDays, setNewDeadlineMonitorDays] = useState('7')
+  const [newDeadlineUrgentDays, setNewDeadlineUrgentDays] = useState('3')
   const [savingDeadline, setSavingDeadline] = useState(false)
   const [editingDocType, setEditingDocType] = useState<string | null>(null)
 
