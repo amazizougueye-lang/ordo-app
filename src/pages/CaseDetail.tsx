@@ -13,22 +13,13 @@ import {
   Loader2, CheckCircle, ChevronDown, Plus, Download, Archive, ArchiveRestore,
   MessageSquare, Send, Clock, Check, BellOff, Tag
 } from 'lucide-react'
+import { DOC_HIERARCHY, getDocTypeDisplay, formatDocType, type DocCategory } from '../lib/docTypes'
 
 const URGENCY_COLORS: Record<DeadlineUrgency, { bg: string; text: string; label: string; dot: string }> = {
   urgent:  { bg: '#FEF2F2', text: '#DC2626', label: 'Urgent',        dot: '#DC2626' },
   monitor: { bg: '#FFFBEB', text: '#D97706', label: 'À surveiller',  dot: '#F59E0B' },
   stable:  { bg: '#ECFDF5', text: '#10B981', label: 'Stable',        dot: '#10B981' },
 }
-
-const DOC_TYPES = [
-  { value: 'procedure',      label: 'Procédure',      color: '#8B5CF6' },
-  { value: 'correspondance', label: 'Correspondance',  color: '#3B82F6' },
-  { value: 'preuve',         label: 'Preuve',          color: '#D97706' },
-  { value: 'administratif',  label: 'Administratif',   color: '#6B7280' },
-]
-
-const getDocTypeInfo = (type: string | null) =>
-  DOC_TYPES.find(t => t.value === type) ?? null
 
 export default function CaseDetail() {
   const { id } = useParams<{ id: string }>()
@@ -465,7 +456,12 @@ export default function CaseDetail() {
                 <div className="flex items-center gap-3">
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: URGENCY_COLORS[c.deadline_urgency || 'stable'].dot }} />
                   <div>
-                    <p className="text-[13px] font-medium" style={{ color: '#0F172A' }}>{c.deadline_name || 'Principal'}</p>
+                    <p className="text-[13px] font-medium">
+                      {c.deadline_name
+                        ? <span style={{ color: '#0F172A' }}>{c.deadline_name}</span>
+                        : <span style={{ color: '#CBD5E1', fontStyle: 'italic' }}>Délai principal</span>
+                      }
+                    </p>
                     <p className="text-[12px]" style={{ color: '#94A3B8' }}>{format(new Date(c.deadline), 'd MMM yyyy', { locale: fr })}</p>
                   </div>
                 </div>
@@ -553,12 +549,12 @@ export default function CaseDetail() {
 
           {/* Add deadline form */}
           <div className="space-y-2">
-            <div className="flex gap-2">
+            <div className="flex gap-2 mb-2">
               <input
                 type="text"
                 className="input-field"
                 placeholder="Nom du délai (ex: Audience tribunal)"
-                style={{ color: '#0F172A', flex: 1 }}
+                style={{ color: '#0F172A', flex: 1, minWidth: '160px' }}
                 value={newDeadlineName}
                 onChange={e => setNewDeadlineName(e.target.value)}
               />
@@ -656,7 +652,6 @@ export default function CaseDetail() {
           ) : (
             <div className="space-y-2">
               {docs.map(doc => {
-                const typeInfo = getDocTypeInfo(doc.doc_type)
                 return (
                   <div
                     key={doc.id}
@@ -670,37 +665,43 @@ export default function CaseDetail() {
                         <p className="text-[13px] font-medium truncate" style={{ color: '#0F172A' }}>{doc.name}</p>
                         {/* Doc type tag */}
                         {editingDocType === doc.id ? (
-                          <div
-                            className="relative"
-                            onClick={e => e.stopPropagation()}
-                          >
+                          <div className="relative" onClick={e => e.stopPropagation()}>
                             <select
                               className="text-[11px] px-2 py-0.5 rounded-md border outline-none"
                               style={{ background: '#F9FAFB', borderColor: '#E5E7EB', color: '#374151' }}
                               defaultValue={doc.doc_type || ''}
-                              onChange={e => updateDocType(doc.id, e.target.value)}
+                              onChange={e => { if (e.target.value) updateDocType(doc.id, e.target.value) }}
                               autoFocus
                               onBlur={() => setEditingDocType(null)}
                             >
                               <option value="">— Type —</option>
-                              {DOC_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                              {(Object.entries(DOC_HIERARCHY) as [DocCategory, typeof DOC_HIERARCHY[DocCategory]][]).map(([cat, info]) => (
+                                <optgroup key={cat} label={info.label}>
+                                  {info.subs.map(sub => (
+                                    <option key={sub} value={formatDocType(cat, sub)}>{sub}</option>
+                                  ))}
+                                </optgroup>
+                              ))}
                             </select>
                           </div>
-                        ) : (
-                          <button
-                            onClick={e => { e.stopPropagation(); setEditingDocType(doc.id) }}
-                            className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors"
-                            style={{
-                              background: typeInfo ? typeInfo.color + '18' : '#F3F4F6',
-                              color: typeInfo ? typeInfo.color : '#9CA3AF',
-                              border: `1px solid ${typeInfo ? typeInfo.color + '40' : '#E5E7EB'}`,
-                            }}
-                            title="Changer le type"
-                          >
-                            <Tag size={9} />
-                            {typeInfo ? typeInfo.label : 'Type'}
-                          </button>
-                        )}
+                        ) : (() => {
+                          const display = getDocTypeDisplay(doc.doc_type)
+                          return (
+                            <button
+                              onClick={e => { e.stopPropagation(); setEditingDocType(doc.id) }}
+                              className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors"
+                              style={{
+                                background: display ? display.color + '18' : '#F3F4F6',
+                                color: display ? display.color : '#9CA3AF',
+                                border: `1px solid ${display ? display.color + '40' : '#E5E7EB'}`,
+                              }}
+                              title="Changer le type"
+                            >
+                              <Tag size={9} />
+                              {display ? display.label : 'Type'}
+                            </button>
+                          )
+                        })()}
                       </div>
                       {doc.summary && (
                         <p className="text-[12px] mb-1 leading-relaxed" style={{ color: '#475569' }}>{doc.summary}</p>

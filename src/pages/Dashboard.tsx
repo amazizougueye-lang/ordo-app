@@ -12,7 +12,7 @@ import type { Note } from '../types'
 import { toast } from 'sonner'
 
 type SortKey = 'deadline' | 'created_at'
-type FilterStatus = CaseStatus | 'all' | 'archived'
+type FilterStatus = CaseStatus | 'all' | 'archived' | 'week'
 
 const URGENCY_COLORS: Record<DeadlineUrgency, { bar: string; badge: string; badgeText: string; label: string }> = {
   urgent:  { bar: '#DC2626', badge: '#FEF2F2', badgeText: '#DC2626', label: 'Urgent' },
@@ -125,10 +125,20 @@ export default function Dashboard() {
       if (q && !c.name.toLowerCase().includes(q) && !c.client_name.toLowerCase().includes(q)) return false
       if (filter === 'archived') return c.archived
       if (c.archived) return false
+      if (filter === 'week') {
+        const now = new Date()
+        const in7 = new Date(now)
+        in7.setDate(now.getDate() + 7)
+        const all = getAllActiveDeadlines(c)
+        return all.some(d => {
+          const date = new Date(d.deadline)
+          return date >= now && date <= in7
+        })
+      }
       if (filter !== 'all') {
         const nearest = getNearestActiveDeadline(c)
         const urgency = nearest?.urgency || 'stable'
-        if (urgency !== filter) return false
+        if (urgency !== (filter as string)) return false
       }
       return true
     })
@@ -221,6 +231,7 @@ export default function Dashboard() {
                 ['urgent', 'Urgents'],
                 ['monitor', 'À surveiller'],
                 ['stable', 'Stables'],
+                ['week', 'Cette semaine'],
                 ['archived', 'Archivés'],
               ] as [FilterStatus, string][]).map(([s, label]) => (
                 <button
