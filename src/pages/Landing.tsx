@@ -54,7 +54,7 @@ const features = [
 const detailedFeatures = [
   { icon: AlertTriangle, title: "Vue Aujourd'hui", desc: "Comprenez en 10 secondes ce qui est urgent.", color: '#DC2626' },
   { icon: FileText, title: 'Extraction IA', desc: "Déposez un PDF, l'IA extrait les dates clés.", color: '#3B82F6' },
-  { icon: Calendar, title: 'Délais CPC Québec', desc: 'Suggestions basées sur le Code de procédure civile.', color: '#8B5CF6' },
+  { icon: Calendar, title: 'Délais automatiques', desc: 'Suggestions de délais basées sur vos documents et la pratique québécoise.', color: '#8B5CF6' },
   { icon: Mail, title: 'Courriel quotidien', desc: 'Chaque matin, un résumé scannable en 10 secondes.', color: '#16A34A' },
   { icon: Search, title: 'Recherche instantanée', desc: "Retrouvez n'importe quel dossier en secondes.", color: '#D97706' },
   { icon: Shield, title: 'Confidentialité totale', desc: "Vos données ne servent jamais à entraîner un modèle.", color: '#0F172A' },
@@ -82,7 +82,7 @@ const solutions = [
 const faqItems = [
   { q: 'Comment intégrer mes dossiers existants ?', a: 'Ordo supporte l\'importation de dossiers via PDF ou email. L\'IA extrait automatiquement les délais et organise vos documents.' },
   { q: 'Puis-je personnaliser l\'interface ?', a: 'Oui, chaque cabinet peut adapter l\'ordre des sections, les rappels et les paramètres d\'urgence selon ses besoins.' },
-  { q: 'Mes données restent confidentielles ?', a: 'Absolument. Vos données ne sont jamais utilisées pour entraîner un modèle. Hébergement au Canada, conforme CPC.' },
+  { q: 'Mes données restent confidentielles ?', a: 'Absolument. Vos données ne sont jamais utilisées pour entraîner un modèle. Hébergement au Canada, conforme à la Loi 25.' },
   { q: 'Combien de temps pour maîtriser l\'outil ?', a: 'Moins de 10 minutes. L\'interface est volontairement simple pour éviter la surcharge informationnelle.' },
   { q: 'Fonctionne avec nos systèmes actuels ?', a: 'Ordo s\'intègre avec Outlook et fonctionne en parallèle de vos outils existants, sans migration forcée.' },
   { q: 'Mes données sont-elles sécurisées ?', a: 'Oui. Chiffrement de bout en bout, hébergement au Canada, et aucune donnée partagée avec des tiers.' },
@@ -486,7 +486,7 @@ export default function Landing() {
           <div className="grid md:grid-cols-3 gap-6">
             {[
               { title: 'Français juridique', desc: 'Interface entièrement en français, avec le vocabulaire du droit québécois.' },
-              { title: 'Réalités locales', desc: 'Adapté aux cabinets québécois : CPC, délais spécifiques, pratiques courantes.' },
+              { title: 'Réalités locales', desc: 'Adapté aux cabinets québécois : délais spécifiques, pratiques courantes, vocabulaire juridique local.' },
               { title: 'Simple par design', desc: 'Pas de département IT requis. Opérationnel en 10 minutes, maîtrisé en une heure.' },
             ].map((item, i) => (
               <Reveal key={item.title} delay={0.1 + i * 0.1}>
@@ -653,37 +653,37 @@ export default function Landing() {
               </h3>
               <ul className="space-y-3">
                 <li>
-                  <a
-                    href="mailto:flowmatic.ca@gmail.com?subject=Confidentialité"
+                  <Link
+                    to="/confidentialite"
                     className="text-[13px] transition-colors"
                     style={{ color: '#64748B' }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#FFFFFF' }}
                     onMouseLeave={e => { e.currentTarget.style.color = '#64748B' }}
                   >
                     Confidentialité
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a
-                    href="mailto:flowmatic.ca@gmail.com?subject=Conditions d'utilisation"
+                  <Link
+                    to="/conditions"
                     className="text-[13px] transition-colors"
                     style={{ color: '#64748B' }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#FFFFFF' }}
                     onMouseLeave={e => { e.currentTarget.style.color = '#64748B' }}
                   >
                     Conditions d'utilisation
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a
-                    href="mailto:flowmatic.ca@gmail.com?subject=RGPD"
+                  <Link
+                    to="/rgpd"
                     className="text-[13px] transition-colors"
                     style={{ color: '#64748B' }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#FFFFFF' }}
                     onMouseLeave={e => { e.currentTarget.style.color = '#64748B' }}
                   >
                     RGPD
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>

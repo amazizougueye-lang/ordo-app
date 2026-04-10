@@ -13,6 +13,9 @@ import Upload from './pages/Upload'
 import Profil from './pages/Profil'
 import Calendar from './pages/Calendar'
 import Stats from './pages/Stats'
+import Confidentialite from './pages/legal/Confidentialite'
+import Conditions from './pages/legal/Conditions'
+import Rgpd from './pages/legal/Rgpd'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -45,6 +48,9 @@ function AppRoutes() {
       <Route path="/dossier/:id" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
       <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
       <Route path="/profil" element={<ProtectedRoute><Profil /></ProtectedRoute>} />
+      <Route path="/confidentialite" element={<Confidentialite />} />
+      <Route path="/conditions" element={<Conditions />} />
+      <Route path="/rgpd" element={<Rgpd />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
