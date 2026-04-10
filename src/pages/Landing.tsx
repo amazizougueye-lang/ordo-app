@@ -5,7 +5,7 @@ import { WavePath } from '../components/landing/WavePath'
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../components/ui/Accordion'
 import { motion } from 'framer-motion'
 import {
-  Shield, FileText, Mail, Calendar, Search,
+  Shield, FileText, Mail, Search,
   ArrowRight, CheckCircle, AlertTriangle, X, Eye, Zap, Lock
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -54,10 +54,9 @@ const features = [
 const detailedFeatures = [
   { icon: AlertTriangle, title: "Vue Aujourd'hui", desc: "Comprenez en 10 secondes ce qui est urgent.", color: '#DC2626' },
   { icon: FileText, title: 'Extraction IA', desc: "Déposez un PDF, l'IA extrait les dates clés.", color: '#3B82F6' },
-  { icon: Calendar, title: 'Délais automatiques', desc: 'Suggestions de délais basées sur vos documents et la pratique québécoise.', color: '#8B5CF6' },
   { icon: Mail, title: 'Courriel quotidien', desc: 'Chaque matin, un résumé scannable en 10 secondes.', color: '#16A34A' },
   { icon: Search, title: 'Recherche instantanée', desc: "Retrouvez n'importe quel dossier en secondes.", color: '#D97706' },
-  { icon: Shield, title: 'Confidentialité totale', desc: "Vos données ne servent jamais à entraîner un modèle.", color: '#0F172A' },
+  { icon: Shield, title: 'Confidentialité totale', desc: "Vos données ne servent jamais à entraîner un modèle. Conforme à la Loi 25.", color: '#0F172A' },
 ]
 
 const stats = [
@@ -386,7 +385,7 @@ export default function Landing() {
       </section>
 
       {/* ━━━ CORE FEATURES (3 blocs) ━━━ */}
-      <section className="py-20" style={{ background: '#F8FAFC' }}>
+      <section id="features" className="py-20" style={{ background: '#F8FAFC' }}>
         <div className="max-w-4xl mx-auto px-6">
           <Reveal>
             <p className="text-center text-[12px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#94A3B8' }}>
@@ -504,7 +503,7 @@ export default function Landing() {
       </section>
 
       {/* ━━━ FAQ ━━━ */}
-      <section className="py-20">
+      <section id="faq" className="py-20">
         <div className="max-w-4xl mx-auto px-6">
           <div className="grid gap-12 md:grid-cols-[1fr_1.5fr]">
             <Reveal>
@@ -611,26 +610,26 @@ export default function Landing() {
               </h3>
               <ul className="space-y-3">
                 <li>
-                  <a
-                    href="#features"
-                    className="text-[13px] transition-colors"
-                    style={{ color: '#64748B' }}
+                  <button
+                    onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                    className="text-[13px] transition-colors text-left"
+                    style={{ color: '#64748B', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#FFFFFF' }}
                     onMouseLeave={e => { e.currentTarget.style.color = '#64748B' }}
                   >
                     Fonctionnalités
-                  </a>
+                  </button>
                 </li>
                 <li>
-                  <a
-                    href="#faq"
-                    className="text-[13px] transition-colors"
-                    style={{ color: '#64748B' }}
+                  <button
+                    onClick={() => document.getElementById('faq')?.scrollIntoView({ behavior: 'smooth' })}
+                    className="text-[13px] transition-colors text-left"
+                    style={{ color: '#64748B', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#FFFFFF' }}
                     onMouseLeave={e => { e.currentTarget.style.color = '#64748B' }}
                   >
                     FAQ
-                  </a>
+                  </button>
                 </li>
                 <li>
                   <a
