@@ -21,103 +21,110 @@ export function Sidebar() {
 
   return (
     <aside
-      className="w-56 shrink-0 flex flex-col h-screen sticky top-0"
-      style={{ background: '#FFFFFF', borderRight: '1px solid #F1F5F9' }}
+      className="w-[220px] shrink-0 flex flex-col h-screen sticky top-0"
+      style={{ background: '#FAFAFA', borderRight: '1px solid #EBEBEB' }}
     >
-      {/* Logo */}
-      <div className="px-5 h-[60px] flex items-center" style={{ borderBottom: '1px solid #F1F5F9' }}>
+      {/* Logo area */}
+      <div className="h-[56px] px-6 flex items-center">
         <OrdoLogo />
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-5 flex flex-col gap-0.5 overflow-y-auto">
+      <nav className="flex-1 px-3 py-2 flex flex-col overflow-y-auto">
+
+        {/* New dossier — top CTA */}
+        <NavLink to="/upload" end>
+          {({ isActive }) => (
+            <span
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium mb-4 transition-all duration-150 cursor-pointer"
+              style={{
+                background: isActive ? '#1E293B' : '#0F172A',
+                color: '#FFFFFF',
+                boxShadow: isActive ? 'none' : '0 1px 3px rgba(15,23,42,0.2)',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = '#1E293B'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = '#0F172A'
+                e.currentTarget.style.boxShadow = '0 1px 3px rgba(15,23,42,0.2)'
+              }}
+            >
+              <Plus size={14} strokeWidth={2.5} />
+              Nouveau dossier
+            </span>
+          )}
+        </NavLink>
+
+        {/* Nav section label */}
+        <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#C4C4C4' }}>
+          Navigation
+        </p>
+
         {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/dashboard'}
-          >
+          <NavLink key={to} to={to} end={to === '/dashboard'}>
             {({ isActive }) => (
               <span
-                className="flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 cursor-pointer"
+                className="flex items-center gap-3 px-3 rounded-lg text-[13px] font-medium transition-all duration-100 cursor-pointer relative"
                 style={{
-                  background: isActive ? '#F1F5F9' : 'transparent',
-                  color: isActive ? '#0F172A' : '#94A3B8',
+                  height: 36,
+                  background: isActive ? '#F0F0F0' : 'transparent',
+                  color: isActive ? '#0F172A' : '#9B9B9B',
+                  marginBottom: 1,
                 }}
                 onMouseEnter={e => {
                   if (!isActive) {
-                    e.currentTarget.style.background = '#F8FAFC'
-                    e.currentTarget.style.color = '#475569'
+                    e.currentTarget.style.background = '#F5F5F5'
+                    e.currentTarget.style.color = '#3F3F3F'
                   }
                 }}
                 onMouseLeave={e => {
                   if (!isActive) {
                     e.currentTarget.style.background = 'transparent'
-                    e.currentTarget.style.color = '#94A3B8'
+                    e.currentTarget.style.color = '#9B9B9B'
                   }
                 }}
               >
-                <Icon size={15} strokeWidth={isActive ? 2 : 1.75} />
+                {isActive && (
+                  <span
+                    className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-sm"
+                    style={{ width: 3, height: 18, background: '#0F172A' }}
+                  />
+                )}
+                <Icon size={14} strokeWidth={isActive ? 2 : 1.75} style={{ flexShrink: 0 }} />
                 {label}
               </span>
             )}
           </NavLink>
         ))}
-
-        {/* Separator */}
-        <div className="my-3" style={{ height: 1, background: '#F1F5F9' }} />
-
-        {/* New case CTA */}
-        <NavLink to="/upload">
-          {({ isActive }) => (
-            <span
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 cursor-pointer"
-              style={{
-                background: isActive ? '#EFF6FF' : 'transparent',
-                color: isActive ? '#2563EB' : '#3B82F6',
-              }}
-              onMouseEnter={e => {
-                if (!isActive) {
-                  e.currentTarget.style.background = '#EFF6FF'
-                }
-              }}
-              onMouseLeave={e => {
-                if (!isActive) {
-                  e.currentTarget.style.background = 'transparent'
-                }
-              }}
-            >
-              <Plus size={15} strokeWidth={1.75} />
-              Nouveau dossier
-            </span>
-          )}
-        </NavLink>
       </nav>
 
       {/* Footer */}
-      <div className="px-3 pb-4 pt-3" style={{ borderTop: '1px solid #F1F5F9' }}>
+      <div className="px-3 py-4 flex flex-col gap-0.5" style={{ borderTop: '1px solid #EBEBEB' }}>
         <NavLink to="/profil">
           {({ isActive }) => (
             <span
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 cursor-pointer mb-0.5"
+              className="flex items-center gap-3 px-3 rounded-lg text-[13px] font-medium transition-all duration-100 cursor-pointer"
               style={{
-                background: isActive ? '#F1F5F9' : 'transparent',
-                color: isActive ? '#0F172A' : '#94A3B8',
+                height: 36,
+                background: isActive ? '#F0F0F0' : 'transparent',
+                color: isActive ? '#0F172A' : '#9B9B9B',
               }}
               onMouseEnter={e => {
                 if (!isActive) {
-                  e.currentTarget.style.background = '#F8FAFC'
-                  e.currentTarget.style.color = '#475569'
+                  e.currentTarget.style.background = '#F5F5F5'
+                  e.currentTarget.style.color = '#3F3F3F'
                 }
               }}
               onMouseLeave={e => {
                 if (!isActive) {
                   e.currentTarget.style.background = 'transparent'
-                  e.currentTarget.style.color = '#94A3B8'
+                  e.currentTarget.style.color = '#9B9B9B'
                 }
               }}
             >
-              <User size={15} strokeWidth={1.75} />
+              <User size={14} strokeWidth={1.75} />
               Profil
             </span>
           )}
@@ -125,23 +132,23 @@ export function Sidebar() {
 
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 w-full text-left"
-          style={{ color: '#CBD5E1' }}
+          className="flex items-center gap-3 px-3 rounded-lg text-[13px] font-medium transition-all duration-100 w-full text-left"
+          style={{ height: 36, color: '#C4C4C4', background: 'transparent' }}
           onMouseEnter={e => {
             e.currentTarget.style.color = '#EF4444'
             e.currentTarget.style.background = '#FFF5F5'
           }}
           onMouseLeave={e => {
-            e.currentTarget.style.color = '#CBD5E1'
+            e.currentTarget.style.color = '#C4C4C4'
             e.currentTarget.style.background = 'transparent'
           }}
         >
-          <LogOut size={15} strokeWidth={1.75} />
+          <LogOut size={14} strokeWidth={1.75} />
           Déconnexion
         </button>
 
         {user?.email && (
-          <p className="text-[10px] mt-3 px-3 truncate" style={{ color: '#E2E8F0' }}>
+          <p className="text-[10px] px-3 pt-2 truncate" style={{ color: '#D4D4D4' }}>
             {user.email}
           </p>
         )}
