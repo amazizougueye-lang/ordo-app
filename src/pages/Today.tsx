@@ -21,6 +21,7 @@ export default function Today() {
       .from('cases')
       .select('*')
       .eq('user_id', user.id)
+      .eq('archived', false)
       .order('deadline', { ascending: true })
       .then(({ data }) => {
         setCases((data as Case[]) || [])

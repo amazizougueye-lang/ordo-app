@@ -1,4 +1,5 @@
 export type CaseStatus = 'urgent' | 'monitor' | 'stable'
+export type DeadlineUrgency = 'urgent' | 'monitor' | 'stable'
 
 export interface Case {
   id: string
@@ -8,6 +9,7 @@ export interface Case {
   status: CaseStatus
   deadline: string | null
   deadline_name: string | null
+  deadline_urgency: DeadlineUrgency | null
   pinned: boolean
   archived: boolean
   case_type: string
@@ -65,6 +67,9 @@ export interface CaseDeadline {
   user_id: string
   name: string
   deadline: string
+  urgency: DeadlineUrgency
+  completed: boolean
+  snoozed_until: string | null
   created_at: string
   updated_at: string
 }

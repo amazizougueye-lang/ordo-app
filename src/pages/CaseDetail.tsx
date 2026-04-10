@@ -3,24 +3,36 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
-import { StatusBadge } from '../components/ui/StatusBadge'
 import { PDFViewer } from '../components/PDFViewer'
-import { computeStatus } from '../lib/utils'
-import { useUrgencySettings } from '../hooks/useUrgencySettings'
-import type { Case, Document, CaseStatus, Note, CaseDeadline } from '../types'
+import type { Case, Document, Note, CaseDeadline, DeadlineUrgency } from '../types'
 import { toast } from 'sonner'
 import { format, differenceInDays, isPast, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
   ArrowLeft, Pin, FileText, Calendar, Trash2,
   Loader2, CheckCircle, ChevronDown, Plus, Download, Archive, ArchiveRestore,
-  MessageSquare, Send, Clock
+  MessageSquare, Send, Clock, Check, BellOff, Tag
 } from 'lucide-react'
+
+const URGENCY_COLORS: Record<DeadlineUrgency, { bg: string; text: string; label: string; dot: string }> = {
+  urgent:  { bg: '#FEF2F2', text: '#DC2626', label: 'Urgent',        dot: '#DC2626' },
+  monitor: { bg: '#FFFBEB', text: '#D97706', label: 'À surveiller',  dot: '#F59E0B' },
+  stable:  { bg: '#ECFDF5', text: '#10B981', label: 'Stable',        dot: '#10B981' },
+}
+
+const DOC_TYPES = [
+  { value: 'procedure',      label: 'Procédure',      color: '#8B5CF6' },
+  { value: 'correspondance', label: 'Correspondance',  color: '#3B82F6' },
+  { value: 'preuve',         label: 'Preuve',          color: '#D97706' },
+  { value: 'administratif',  label: 'Administratif',   color: '#6B7280' },
+]
+
+const getDocTypeInfo = (type: string | null) =>
+  DOC_TYPES.find(t => t.value === type) ?? null
 
 export default function CaseDetail() {
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
-  const { urgentDays, monitorDays } = useUrgencySettings()
   const navigate = useNavigate()
   const [c, setCase] = useState<Case | null>(null)
   const [docs, setDocs] = useState<Document[]>([])
@@ -30,21 +42,25 @@ export default function CaseDetail() {
   // Editable fields
   const [name, setName] = useState('')
   const [clientName, setClientName] = useState('')
-  const [status, setStatus] = useState<CaseStatus>('stable')
   const [deadline, setDeadline] = useState('')
+  const [deadlineName, setDeadlineName] = useState('')
+  const [deadlineUrgency, setDeadlineUrgency] = useState<DeadlineUrgency>('stable')
+  const [caseType, setCaseType] = useState('')
+  const [caseTypeCustom, setCaseTypeCustom] = useState('')
+  const [caseNumber, setCaseNumber] = useState('')
+
   const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null)
   const [viewingDoc, setViewingDoc] = useState<Document | null>(null)
   const [viewingUrl, setViewingUrl] = useState<string | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
   const [newNote, setNewNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
-  const [caseType, setCaseType] = useState('')
-  const [caseTypeCustom, setCaseTypeCustom] = useState('')
   const [caseDeadlines, setCaseDeadlines] = useState<CaseDeadline[]>([])
-  const [deadlineName, setDeadlineName] = useState('')
   const [newDeadlineName, setNewDeadlineName] = useState('')
   const [newDeadlineDate, setNewDeadlineDate] = useState('')
+  const [newDeadlineUrgency, setNewDeadlineUrgency] = useState<DeadlineUrgency>('stable')
   const [savingDeadline, setSavingDeadline] = useState(false)
+  const [editingDocType, setEditingDocType] = useState<string | null>(null)
 
   const CASE_TYPES = [
     { value: 'civil', label: 'Civil' },
@@ -72,9 +88,10 @@ export default function CaseDetail() {
         setCase(d)
         setName(d.name)
         setClientName(d.client_name)
-        setStatus(d.status)
         setDeadline(d.deadline?.slice(0, 10) || '')
         setDeadlineName(d.deadline_name || '')
+        setDeadlineUrgency((d.deadline_urgency as DeadlineUrgency) || 'stable')
+        setCaseNumber(d.case_number || '')
         const t = d.case_type || 'civil'
         if (KNOWN_TYPES.includes(t)) { setCaseType(t) }
         else { setCaseType('autre'); setCaseTypeCustom(t) }
@@ -95,15 +112,23 @@ export default function CaseDetail() {
       .update({
         name,
         client_name: clientName,
-        status,
         deadline: deadline || null,
         deadline_name: deadlineName.trim() || null,
+        deadline_urgency: deadline ? deadlineUrgency : null,
         case_type: finalType,
+        case_number: caseNumber.trim() || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', c.id)
     if (error) toast.error('Erreur lors de la sauvegarde')
-    else { toast.success('Dossier mis à jour'); setCase(prev => prev ? { ...prev, name, client_name: clientName, status, deadline, deadline_name: deadlineName, case_type: finalType } : prev) }
+    else {
+      toast.success('Dossier mis à jour')
+      setCase(prev => prev ? {
+        ...prev, name, client_name: clientName, deadline: deadline || null,
+        deadline_name: deadlineName, deadline_urgency: deadline ? deadlineUrgency : null,
+        case_type: finalType, case_number: caseNumber.trim() || null
+      } : prev)
+    }
     setSaving(false)
   }
 
@@ -113,8 +138,7 @@ export default function CaseDetail() {
     const { data, error } = await supabase
       .from('notes')
       .insert({ case_id: c.id, user_id: user.id, content: newNote.trim() })
-      .select()
-      .single()
+      .select().single()
     if (error) toast.error('Erreur')
     else { setNotes(prev => [...prev, data as Note]); setNewNote('') }
     setSavingNote(false)
@@ -135,12 +159,35 @@ export default function CaseDetail() {
         user_id: user.id,
         name: newDeadlineName.trim(),
         deadline: newDeadlineDate,
+        urgency: newDeadlineUrgency,
+        completed: false,
       })
-      .select()
-      .single()
+      .select().single()
     if (error) toast.error('Erreur')
-    else { setCaseDeadlines(prev => [...prev, data as CaseDeadline].sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())); setNewDeadlineName(''); setNewDeadlineDate('') }
+    else {
+      setCaseDeadlines(prev => [...prev, data as CaseDeadline].sort((a, b) =>
+        new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+      ))
+      setNewDeadlineName('')
+      setNewDeadlineDate('')
+      setNewDeadlineUrgency('stable')
+    }
     setSavingDeadline(false)
+  }
+
+  const completeDeadline = async (deadlineId: string) => {
+    await supabase.from('case_deadlines').update({ completed: true }).eq('id', deadlineId)
+    setCaseDeadlines(prev => prev.filter(d => d.id !== deadlineId))
+    toast.success('Échéance marquée comme faite')
+  }
+
+  const snoozeDeadline = async (deadlineId: string) => {
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    tomorrow.setHours(0, 0, 0, 0)
+    await supabase.from('case_deadlines').update({ snoozed_until: tomorrow.toISOString() }).eq('id', deadlineId)
+    setCaseDeadlines(prev => prev.map(d => d.id === deadlineId ? { ...d, snoozed_until: tomorrow.toISOString() } : d))
+    toast.success('Échéance reportée à demain')
   }
 
   const deleteDeadline = async (deadlineId: string) => {
@@ -148,17 +195,21 @@ export default function CaseDetail() {
     setCaseDeadlines(prev => prev.filter(d => d.id !== deadlineId))
   }
 
+  const updateDocType = async (docId: string, type: string) => {
+    await supabase.from('documents').update({ doc_type: type }).eq('id', docId)
+    setDocs(prev => prev.map(d => d.id === docId ? { ...d, doc_type: type } : d))
+    setEditingDocType(null)
+  }
+
   const getNearestDeadline = () => {
     const allDeadlines = [
       ...(c?.deadline ? [{ name: c.deadline_name || 'Principal', deadline: c.deadline }] : []),
-      ...caseDeadlines.map(d => ({ name: d.name, deadline: d.deadline }))
+      ...caseDeadlines.filter(d => !d.completed).map(d => ({ name: d.name, deadline: d.deadline }))
     ]
     if (allDeadlines.length === 0) return null
-    return allDeadlines.reduce((nearest, current) => {
-      const currentDate = new Date(current.deadline).getTime()
-      const nearestDate = new Date(nearest.deadline).getTime()
-      return currentDate < nearestDate ? current : nearest
-    })
+    return allDeadlines.reduce((nearest, current) =>
+      new Date(current.deadline).getTime() < new Date(nearest.deadline).getTime() ? current : nearest
+    )
   }
 
   const deadlineLabel = (deadlineStr: string | null) => {
@@ -170,6 +221,9 @@ export default function CaseDetail() {
     if (diff <= 3) return { text: `Dans ${diff}j`, color: '#D97706' }
     return { text: format(d, 'd MMM yyyy', { locale: fr }), color: '#475569' }
   }
+
+  const isDeadlineSnoozed = (d: CaseDeadline) =>
+    d.snoozed_until ? new Date(d.snoozed_until) > new Date() : false
 
   const togglePin = async () => {
     if (!c) return
@@ -206,30 +260,21 @@ export default function CaseDetail() {
         setViewingDoc(doc)
         setViewingUrl(signedData.signedUrl)
       }
-    } catch (err) {
-      toast.error('Erreur ouverture PDF')
-    }
+    } catch { toast.error('Erreur ouverture PDF') }
   }
 
   const downloadDocument = async (doc: Document) => {
     if (!user) return
     setDownloadingDoc(doc.id)
     try {
-      const { data, error } = await supabase.storage
-        .from('documents')
-        .download(doc.storage_path)
+      const { data, error } = await supabase.storage.from('documents').download(doc.storage_path)
       if (error) throw error
       const url = URL.createObjectURL(data)
       const a = document.createElement('a')
-      a.href = url
-      a.download = doc.name
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
+      a.href = url; a.download = doc.name
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
       URL.revokeObjectURL(url)
-    } catch (err) {
-      toast.error('Erreur téléchargement')
-    }
+    } catch { toast.error('Erreur téléchargement') }
     setDownloadingDoc(null)
   }
 
@@ -250,6 +295,8 @@ export default function CaseDetail() {
     </AppLayout>
   )
 
+  const nearestDl = getNearestDeadline()
+
   return (
     <AppLayout>
       <div className="max-w-2xl mx-auto px-6 py-8">
@@ -259,23 +306,12 @@ export default function CaseDetail() {
             <ArrowLeft size={14} /> Dossiers
           </Link>
           <div className="flex items-center gap-2">
-            <button
-              onClick={togglePin}
-              className="btn-ghost gap-1.5"
-              title={c.pinned ? 'Désépingler' : 'Épingler'}
-            >
+            <button onClick={togglePin} className="btn-ghost gap-1.5" title={c.pinned ? 'Désépingler' : 'Épingler'}>
               <Pin size={14} fill={c.pinned ? '#1E293B' : 'none'} />
               {c.pinned ? 'Épinglé' : 'Épingler'}
             </button>
-            <button
-              onClick={toggleArchive}
-              className="btn-ghost gap-1.5"
-              title={c.archived ? 'Restaurer' : 'Archiver'}
-            >
-              {c.archived
-                ? <><ArchiveRestore size={14} /> Restaurer</>
-                : <><Archive size={14} /> Archiver</>
-              }
+            <button onClick={toggleArchive} className="btn-ghost gap-1.5" title={c.archived ? 'Restaurer' : 'Archiver'}>
+              {c.archived ? <><ArchiveRestore size={14} /> Restaurer</> : <><Archive size={14} /> Archiver</>}
             </button>
             <button onClick={deleteCase} className="btn-ghost" style={{ color: '#DC2626' }}>
               <Trash2 size={14} />
@@ -283,11 +319,10 @@ export default function CaseDetail() {
           </div>
         </div>
 
-        {/* Title + Deadline Header */}
+        {/* Title header */}
         <div className="flex items-start justify-between mb-7">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <StatusBadge status={computeStatus(c.status, c.deadline, urgentDays, monitorDays)} />
               {c.case_number && (
                 <span className="text-[11px] font-mono px-2 py-0.5 rounded" style={{ background: '#F1F5F9', color: '#64748B' }}>
                   #{c.case_number}
@@ -299,17 +334,13 @@ export default function CaseDetail() {
                 </span>
               )}
             </div>
-            <h1
-              className="text-[24px] font-semibold mt-2"
-              style={{ color: '#0F172A', letterSpacing: '-0.02em' }}
-            >
+            <h1 className="text-[24px] font-semibold mt-2" style={{ color: '#0F172A', letterSpacing: '-0.02em' }}>
               {c.name}
             </h1>
             <p className="text-[13px] mt-1" style={{ color: '#94A3B8' }}>{c.client_name}</p>
           </div>
-          {(() => {
-            const nearest = getNearestDeadline()
-            const dl = nearest ? deadlineLabel(nearest.deadline) : null
+          {nearestDl && (() => {
+            const dl = deadlineLabel(nearestDl.deadline)
             return dl ? (
               <div className="text-right">
                 <p className="text-[11px] mb-1" style={{ color: '#94A3B8' }}>Prochain délai</p>
@@ -321,10 +352,7 @@ export default function CaseDetail() {
 
         {/* Summary */}
         {c.summary && (
-          <div
-            className="rounded-lg px-5 py-4 mb-6"
-            style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}
-          >
+          <div className="rounded-lg px-5 py-4 mb-6" style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
             <p className="section-label mb-2">Résumé IA</p>
             <p className="text-[13px] leading-relaxed" style={{ color: '#475569' }}>{c.summary}</p>
           </div>
@@ -343,19 +371,13 @@ export default function CaseDetail() {
               <input className="input-field" value={clientName} onChange={e => setClientName(e.target.value)} />
             </div>
             <div>
-              <label className="field-label">Statut</label>
-              <div className="relative">
-                <select
-                  className="input-field appearance-none pr-8"
-                  value={status}
-                  onChange={e => setStatus(e.target.value as CaseStatus)}
-                >
-                  <option value="stable">Stable</option>
-                  <option value="monitor">À surveiller</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#94A3B8' }} />
-              </div>
+              <label className="field-label">Numéro de dossier <span style={{ color: '#CBD5E1', fontWeight: 400 }}>(optionnel)</span></label>
+              <input
+                className="input-field"
+                placeholder="Ex: 2024-0042"
+                value={caseNumber}
+                onChange={e => setCaseNumber(e.target.value)}
+              />
             </div>
             <div>
               <label className="field-label">Type de dossier</label>
@@ -365,9 +387,7 @@ export default function CaseDetail() {
                   value={caseType}
                   onChange={e => setCaseType(e.target.value)}
                 >
-                  {CASE_TYPES.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
+                  {CASE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
                 <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#94A3B8' }} />
               </div>
@@ -382,12 +402,12 @@ export default function CaseDetail() {
             </div>
             <div>
               <label className="field-label">Délai principal</label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 mb-2">
                 <input
                   type="text"
                   placeholder="Nom (ex: Jugement)"
                   className="input-field"
-                  style={{ color: '#0F172A', minWidth: '200px', flex: 1 }}
+                  style={{ color: '#0F172A', minWidth: '160px', flex: 1 }}
                   value={deadlineName}
                   onChange={e => setDeadlineName(e.target.value)}
                 />
@@ -398,6 +418,27 @@ export default function CaseDetail() {
                   onChange={e => setDeadline(e.target.value)}
                 />
               </div>
+              {deadline && (
+                <div className="flex gap-1">
+                  {(['stable', 'monitor', 'urgent'] as DeadlineUrgency[]).map(u => {
+                    const col = URGENCY_COLORS[u]
+                    return (
+                      <button
+                        key={u}
+                        onClick={() => setDeadlineUrgency(u)}
+                        className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-all"
+                        style={{
+                          background: deadlineUrgency === u ? col.bg : '#F9FAFB',
+                          color: deadlineUrgency === u ? col.text : '#9CA3AF',
+                          border: `1px solid ${deadlineUrgency === u ? col.dot : '#E5E7EB'}`,
+                        }}
+                      >
+                        {col.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
             <button onClick={handleSave} disabled={saving} className="btn-primary gap-2">
               {saving
@@ -412,32 +453,96 @@ export default function CaseDetail() {
         <div className="card p-5 mb-6">
           <div className="flex items-center gap-2 mb-3">
             <Clock size={14} style={{ color: '#94A3B8' }} />
-            <p className="section-label">Délais ({caseDeadlines.length + (c?.deadline ? 1 : 0)})</p>
+            <p className="section-label">Délais ({caseDeadlines.filter(d => !d.completed).length + (c?.deadline ? 1 : 0)})</p>
           </div>
           <div className="space-y-2 mb-4">
+            {/* Main deadline */}
             {c?.deadline && (
-              <div className="flex items-center justify-between px-4 py-3 rounded-lg" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
-                <div>
-                  <p className="text-[13px] font-medium" style={{ color: '#0F172A' }}>{c.deadline_name || 'Principal'}</p>
-                  <p className="text-[12px]" style={{ color: '#94A3B8' }}>{format(new Date(c.deadline), 'd MMM yyyy', { locale: fr })}</p>
+              <div
+                className="flex items-center justify-between px-4 py-3 rounded-lg"
+                style={{ background: URGENCY_COLORS[c.deadline_urgency || 'stable'].bg, border: `1px solid ${URGENCY_COLORS[c.deadline_urgency || 'stable'].dot}30` }}
+              >
+                <div className="flex items-center gap-3">
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: URGENCY_COLORS[c.deadline_urgency || 'stable'].dot }} />
+                  <div>
+                    <p className="text-[13px] font-medium" style={{ color: '#0F172A' }}>{c.deadline_name || 'Principal'}</p>
+                    <p className="text-[12px]" style={{ color: '#94A3B8' }}>{format(new Date(c.deadline), 'd MMM yyyy', { locale: fr })}</p>
+                  </div>
                 </div>
                 {(() => {
                   const dl = deadlineLabel(c.deadline)
-                  return dl ? <span className="text-[11px] font-medium" style={{ color: dl.color }}>{dl.text}</span> : null
+                  return dl ? (
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-md" style={{ background: 'rgba(255,255,255,0.7)', color: dl.color }}>{dl.text}</span>
+                  ) : null
                 })()}
               </div>
             )}
-            {caseDeadlines.map(cd => {
+
+            {/* Additional deadlines */}
+            {caseDeadlines.filter(d => !d.completed).map(cd => {
               const dl = deadlineLabel(cd.deadline)
+              const uc = URGENCY_COLORS[cd.urgency || 'stable']
+              const snoozed = isDeadlineSnoozed(cd)
               return (
-                <div key={cd.id} className="flex items-center justify-between px-4 py-3 rounded-lg" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0' }}>
-                  <div>
-                    <p className="text-[13px] font-medium" style={{ color: '#0F172A' }}>{cd.name}</p>
-                    <p className="text-[12px]" style={{ color: '#94A3B8' }}>{format(new Date(cd.deadline), 'd MMM yyyy', { locale: fr })}</p>
-                  </div>
+                <div
+                  key={cd.id}
+                  className="flex items-center justify-between px-4 py-3 rounded-lg"
+                  style={{
+                    background: snoozed ? '#F9FAFB' : uc.bg,
+                    border: `1px solid ${snoozed ? '#E5E7EB' : uc.dot + '30'}`,
+                    opacity: snoozed ? 0.7 : 1,
+                  }}
+                >
                   <div className="flex items-center gap-3">
-                    {dl && <span className="text-[11px] font-medium" style={{ color: dl.color }}>{dl.text}</span>}
-                    <button onClick={() => deleteDeadline(cd.id)} style={{ color: '#CBD5E1' }} className="hover:text-red-400 transition-colors">
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: snoozed ? '#D1D5DB' : uc.dot }} />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[13px] font-medium" style={{ color: '#0F172A' }}>{cd.name}</p>
+                        {snoozed && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: '#F3F4F6', color: '#9CA3AF' }}>
+                            Reporté à demain
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[12px]" style={{ color: '#94A3B8' }}>
+                        {format(new Date(cd.deadline), 'd MMM yyyy', { locale: fr })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {dl && !snoozed && (
+                      <span className="text-[11px] font-medium" style={{ color: dl.color }}>{dl.text}</span>
+                    )}
+                    {/* Snooze */}
+                    <button
+                      onClick={() => snoozeDeadline(cd.id)}
+                      disabled={snoozed}
+                      className="p-1.5 rounded transition-colors"
+                      title="Reporter à demain"
+                      style={{ color: snoozed ? '#E5E7EB' : '#D1D5DB' }}
+                      onMouseEnter={e => { if (!snoozed) { e.currentTarget.style.color = '#D97706'; e.currentTarget.style.background = '#FFFBEB' } }}
+                      onMouseLeave={e => { e.currentTarget.style.color = snoozed ? '#E5E7EB' : '#D1D5DB'; e.currentTarget.style.background = 'transparent' }}
+                    >
+                      <BellOff size={12} />
+                    </button>
+                    {/* Fait */}
+                    <button
+                      onClick={() => completeDeadline(cd.id)}
+                      className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-all"
+                      style={{ color: '#6B7280', border: '1px solid #E5E7EB' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#ECFDF5'; e.currentTarget.style.color = '#10B981'; e.currentTarget.style.borderColor = '#10B981' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB' }}
+                    >
+                      <Check size={11} /> Fait
+                    </button>
+                    {/* Delete */}
+                    <button
+                      onClick={() => deleteDeadline(cd.id)}
+                      className="p-1.5 rounded transition-colors"
+                      style={{ color: '#D1D5DB' }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#DC2626'; e.currentTarget.style.background = '#FEF2F2' }}
+                      onMouseLeave={e => { e.currentTarget.style.color = '#D1D5DB'; e.currentTarget.style.background = 'transparent' }}
+                    >
                       <Trash2 size={12} />
                     </button>
                   </div>
@@ -445,29 +550,54 @@ export default function CaseDetail() {
               )
             })}
           </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              className="input-field"
-              placeholder="Nom du délai (ex: Audience tribunal)"
-              style={{ color: '#0F172A', minWidth: '200px', flex: 1 }}
-              value={newDeadlineName}
-              onChange={e => setNewDeadlineName(e.target.value)}
-            />
-            <input
-              type="date"
-              className="input-field"
-              value={newDeadlineDate}
-              onChange={e => setNewDeadlineDate(e.target.value)}
-            />
-            <button
-              onClick={addDeadline}
-              disabled={savingDeadline || !newDeadlineName.trim() || !newDeadlineDate}
-              className="btn-primary gap-1.5"
-              style={{ padding: '0 14px' }}
-            >
-              {savingDeadline ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-            </button>
+
+          {/* Add deadline form */}
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Nom du délai (ex: Audience tribunal)"
+                style={{ color: '#0F172A', flex: 1 }}
+                value={newDeadlineName}
+                onChange={e => setNewDeadlineName(e.target.value)}
+              />
+              <input
+                type="date"
+                className="input-field"
+                value={newDeadlineDate}
+                onChange={e => setNewDeadlineDate(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex gap-1">
+                {(['stable', 'monitor', 'urgent'] as DeadlineUrgency[]).map(u => {
+                  const col = URGENCY_COLORS[u]
+                  return (
+                    <button
+                      key={u}
+                      onClick={() => setNewDeadlineUrgency(u)}
+                      className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-all"
+                      style={{
+                        background: newDeadlineUrgency === u ? col.bg : '#F9FAFB',
+                        color: newDeadlineUrgency === u ? col.text : '#9CA3AF',
+                        border: `1px solid ${newDeadlineUrgency === u ? col.dot : '#E5E7EB'}`,
+                      }}
+                    >
+                      {col.label}
+                    </button>
+                  )
+                })}
+              </div>
+              <button
+                onClick={addDeadline}
+                disabled={savingDeadline || !newDeadlineName.trim() || !newDeadlineDate}
+                className="btn-primary gap-1.5"
+                style={{ padding: '0 14px' }}
+              >
+                {savingDeadline ? <Loader2 size={14} className="animate-spin" /> : <><Plus size={14} /> Ajouter</>}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -479,11 +609,7 @@ export default function CaseDetail() {
           </div>
           <div className="space-y-2 mb-3">
             {notes.map(note => (
-              <div
-                key={note.id}
-                className="flex items-start gap-3 px-4 py-3 rounded-lg"
-                style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}
-              >
+              <div key={note.id} className="flex items-start gap-3 px-4 py-3 rounded-lg" style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
                 <p className="flex-1 text-[13px] leading-relaxed" style={{ color: '#0F172A' }}>{note.content}</p>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-[11px]" style={{ color: '#94A3B8' }}>
@@ -519,62 +645,93 @@ export default function CaseDetail() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="section-label">Documents ({docs.length})</p>
-            <Link
-              to={`/upload?case_id=${c?.id}`}
-              className="btn-ghost gap-1.5 text-[13px]"
-              style={{ padding: '6px 10px' }}
-            >
+            <Link to={`/upload?case_id=${c?.id}`} className="btn-ghost gap-1.5 text-[13px]" style={{ padding: '6px 10px' }}>
               <Plus size={14} /> Ajouter doc
             </Link>
           </div>
           {docs.length === 0 ? (
-            <div
-              className="rounded-lg px-5 py-8 text-center"
-              style={{ border: '1.5px dashed #E2E8F0' }}
-            >
+            <div className="rounded-lg px-5 py-8 text-center" style={{ border: '1.5px dashed #E2E8F0' }}>
               <p className="text-[13px]" style={{ color: '#94A3B8' }}>Aucun document attaché</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {docs.map(doc => (
-                <div
-                  key={doc.id}
-                  className="flex items-start gap-4 px-4 py-3.5 rounded-lg cursor-pointer transition-colors hover:bg-gray-50"
-                  style={{ background: '#FFFFFF', border: '1px solid #E2E8F0' }}
-                  onClick={() => viewDocument(doc)}
-                >
-                  <FileText size={16} className="shrink-0 mt-0.5" style={{ color: '#94A3B8' }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium truncate" style={{ color: '#0F172A' }}>{doc.name}</p>
-                    {doc.summary && (
-                      <p className="text-[12px] mt-1 leading-relaxed" style={{ color: '#475569' }}>{doc.summary}</p>
-                    )}
-                    <div className="flex items-center gap-4 mt-2">
-                      {doc.extracted_date && (
-                        <span className="flex items-center gap-1 text-[11px]" style={{ color: '#94A3B8' }}>
-                          <Calendar size={11} />
-                          {format(new Date(doc.extracted_date), 'd MMM yyyy', { locale: fr })}
-                        </span>
-                      )}
-                      <span className="text-[11px]" style={{ color: '#CBD5E1' }}>
-                        {format(new Date(doc.created_at), 'd MMM yyyy', { locale: fr })}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); downloadDocument(doc) }}
-                    disabled={downloadingDoc === doc.id}
-                    className="shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ color: '#94A3B8' }}
-                    title="Télécharger"
+              {docs.map(doc => {
+                const typeInfo = getDocTypeInfo(doc.doc_type)
+                return (
+                  <div
+                    key={doc.id}
+                    className="flex items-start gap-4 px-4 py-3.5 rounded-lg cursor-pointer group transition-colors hover:bg-gray-50"
+                    style={{ background: '#FFFFFF', border: '1px solid #E2E8F0' }}
+                    onClick={() => viewDocument(doc)}
                   >
-                    {downloadingDoc === doc.id
-                      ? <Loader2 size={14} className="animate-spin" />
-                      : <Download size={14} />
-                    }
-                  </button>
-                </div>
-              ))}
+                    <FileText size={16} className="shrink-0 mt-0.5" style={{ color: '#94A3B8' }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-[13px] font-medium truncate" style={{ color: '#0F172A' }}>{doc.name}</p>
+                        {/* Doc type tag */}
+                        {editingDocType === doc.id ? (
+                          <div
+                            className="relative"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <select
+                              className="text-[11px] px-2 py-0.5 rounded-md border outline-none"
+                              style={{ background: '#F9FAFB', borderColor: '#E5E7EB', color: '#374151' }}
+                              defaultValue={doc.doc_type || ''}
+                              onChange={e => updateDocType(doc.id, e.target.value)}
+                              autoFocus
+                              onBlur={() => setEditingDocType(null)}
+                            >
+                              <option value="">— Type —</option>
+                              {DOC_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                            </select>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={e => { e.stopPropagation(); setEditingDocType(doc.id) }}
+                            className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors"
+                            style={{
+                              background: typeInfo ? typeInfo.color + '18' : '#F3F4F6',
+                              color: typeInfo ? typeInfo.color : '#9CA3AF',
+                              border: `1px solid ${typeInfo ? typeInfo.color + '40' : '#E5E7EB'}`,
+                            }}
+                            title="Changer le type"
+                          >
+                            <Tag size={9} />
+                            {typeInfo ? typeInfo.label : 'Type'}
+                          </button>
+                        )}
+                      </div>
+                      {doc.summary && (
+                        <p className="text-[12px] mb-1 leading-relaxed" style={{ color: '#475569' }}>{doc.summary}</p>
+                      )}
+                      <div className="flex items-center gap-4">
+                        {doc.extracted_date && (
+                          <span className="flex items-center gap-1 text-[11px]" style={{ color: '#94A3B8' }}>
+                            <Calendar size={11} />
+                            {format(new Date(doc.extracted_date), 'd MMM yyyy', { locale: fr })}
+                          </span>
+                        )}
+                        <span className="text-[11px]" style={{ color: '#CBD5E1' }}>
+                          Ajouté le {format(new Date(doc.created_at), 'd MMM yyyy', { locale: fr })}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); downloadDocument(doc) }}
+                      disabled={downloadingDoc === doc.id}
+                      className="shrink-0 p-1 rounded transition-opacity opacity-0 group-hover:opacity-100"
+                      style={{ color: '#94A3B8' }}
+                      title="Télécharger"
+                    >
+                      {downloadingDoc === doc.id
+                        ? <Loader2 size={14} className="animate-spin" />
+                        : <Download size={14} />
+                      }
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
