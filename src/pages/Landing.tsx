@@ -584,44 +584,122 @@ export default function Landing() {
 
       {/* ━━━ FOOTER ━━━ */}
       <footer style={{ background: '#0F172A', color: '#FFFFFF', borderTop: '1px solid #1E293B' }}>
-        <div className="max-w-6xl mx-auto px-6 py-12">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+        <div className="max-w-6xl mx-auto px-6 py-16">
+          <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr] gap-12 mb-12">
+
+            {/* Brand block */}
             <div>
-              <h3 className="font-semibold mb-4 text-[14px]">Produit</h3>
-              <ul className="space-y-2 text-[13px]" style={{ color: '#94A3B8' }}>
-                <li><Link to="#" className="hover:text-white transition-colors">Fonctionnalités</Link></li>
-                <li><Link to="#" className="hover:text-white transition-colors">Tarification</Link></li>
-                <li><Link to="#" className="hover:text-white transition-colors">Blog</Link></li>
+              <OrdoLogo />
+              <p className="text-[13px] leading-relaxed mt-4 max-w-xs" style={{ color: '#475569' }}>
+                Ordo aide les avocats québécois à ne jamais rater un délai juridique. Extraction automatique, vue claire, rappels intelligents.
+              </p>
+              <a
+                href="mailto:flowmatic.ca@gmail.com"
+                className="inline-flex items-center gap-2 mt-5 text-[13px] transition-colors"
+                style={{ color: '#64748B' }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#FFFFFF' }}
+                onMouseLeave={e => { e.currentTarget.style.color = '#64748B' }}
+              >
+                flowmatic.ca@gmail.com
+              </a>
+            </div>
+
+            {/* Produit */}
+            <div>
+              <h3 className="text-[12px] font-semibold uppercase tracking-widest mb-5" style={{ color: '#334155' }}>
+                Produit
+              </h3>
+              <ul className="space-y-3">
+                <li>
+                  <a
+                    href="#features"
+                    className="text-[13px] transition-colors"
+                    style={{ color: '#64748B' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#FFFFFF' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#64748B' }}
+                  >
+                    Fonctionnalités
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#faq"
+                    className="text-[13px] transition-colors"
+                    style={{ color: '#64748B' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#FFFFFF' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#64748B' }}
+                  >
+                    FAQ
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="mailto:flowmatic.ca@gmail.com"
+                    className="text-[13px] transition-colors"
+                    style={{ color: '#64748B' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#FFFFFF' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#64748B' }}
+                  >
+                    Contact
+                  </a>
+                </li>
               </ul>
             </div>
+
+            {/* Légal */}
             <div>
-              <h3 className="font-semibold mb-4 text-[14px]">Entreprise</h3>
-              <ul className="space-y-2 text-[13px]" style={{ color: '#94A3B8' }}>
-                <li><Link to="#" className="hover:text-white transition-colors">À propos</Link></li>
-                <li><Link to="#" className="hover:text-white transition-colors">Équipe</Link></li>
-                <li><Link to="#" className="hover:text-white transition-colors">Carrières</Link></li>
+              <h3 className="text-[12px] font-semibold uppercase tracking-widest mb-5" style={{ color: '#334155' }}>
+                Légal
+              </h3>
+              <ul className="space-y-3">
+                <li>
+                  <a
+                    href="mailto:flowmatic.ca@gmail.com?subject=Confidentialité"
+                    className="text-[13px] transition-colors"
+                    style={{ color: '#64748B' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#FFFFFF' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#64748B' }}
+                  >
+                    Confidentialité
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="mailto:flowmatic.ca@gmail.com?subject=Conditions d'utilisation"
+                    className="text-[13px] transition-colors"
+                    style={{ color: '#64748B' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#FFFFFF' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#64748B' }}
+                  >
+                    Conditions d'utilisation
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="mailto:flowmatic.ca@gmail.com?subject=RGPD"
+                    className="text-[13px] transition-colors"
+                    style={{ color: '#64748B' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#FFFFFF' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#64748B' }}
+                  >
+                    RGPD
+                  </a>
+                </li>
               </ul>
             </div>
-            <div>
-              <h3 className="font-semibold mb-4 text-[14px]">Support</h3>
-              <ul className="space-y-2 text-[13px]" style={{ color: '#94A3B8' }}>
-                <li><Link to="#" className="hover:text-white transition-colors">Documentation</Link></li>
-                <li><Link to="#" className="hover:text-white transition-colors">FAQ</Link></li>
-                <li><Link to="#" className="hover:text-white transition-colors">Contact</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4 text-[14px]">Légal</h3>
-              <ul className="space-y-2 text-[13px]" style={{ color: '#94A3B8' }}>
-                <li><Link to="#" className="hover:text-white transition-colors">Confidentialité</Link></li>
-                <li><Link to="#" className="hover:text-white transition-colors">Conditions</Link></li>
-                <li><Link to="#" className="hover:text-white transition-colors">RGPD</Link></li>
-              </ul>
-            </div>
+
           </div>
-          <div style={{ borderTop: '1px solid #1E293B', paddingTop: '12px', textAlign: 'center' }}>
-            <p style={{ color: '#94A3B8', fontSize: '13px' }}>
-              © {new Date().getFullYear()} Ordo. Tous droits réservés. · Données hébergées au Canada
+
+          {/* Bottom bar */}
+          <div
+            className="flex flex-col md:flex-row items-center justify-between gap-4 pt-8"
+            style={{ borderTop: '1px solid #1E293B' }}
+          >
+            <p className="text-[12px]" style={{ color: '#334155' }}>
+              © {new Date().getFullYear()} Ordo. Tous droits réservés.
+            </p>
+            <p className="text-[12px]" style={{ color: '#334155' }}>
+              Données hébergées au Canada · Conçu pour les avocats québécois
             </p>
           </div>
         </div>
