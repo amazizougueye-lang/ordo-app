@@ -676,35 +676,38 @@ export default function CaseDetail() {
                 onChange={e => setNewDeadlineDate(e.target.value)}
               />
             </div>
-            {/* Threshold fields — discrete, below date */}
-            <div className="flex items-center gap-3 pl-0.5">
-              <span className="text-[11px]" style={{ color: '#CBD5E1' }}>Alertes auto :</span>
-              <label className="flex items-center gap-1.5">
-                <span className="text-[11px]" style={{ color: '#94A3B8' }}>🟡 dans</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={365}
-                  className="input-field text-[11px] text-center"
-                  style={{ width: 48, padding: '3px 6px', color: '#475569' }}
-                  value={newDeadlineMonitorDays}
-                  onChange={e => setNewDeadlineMonitorDays(e.target.value)}
-                />
-                <span className="text-[11px]" style={{ color: '#94A3B8' }}>j</span>
-              </label>
-              <label className="flex items-center gap-1.5">
-                <span className="text-[11px]" style={{ color: '#94A3B8' }}>🔴 dans</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={365}
-                  className="input-field text-[11px] text-center"
-                  style={{ width: 48, padding: '3px 6px', color: '#475569' }}
-                  value={newDeadlineUrgentDays}
-                  onChange={e => setNewDeadlineUrgentDays(e.target.value)}
-                />
-                <span className="text-[11px]" style={{ color: '#94A3B8' }}>j</span>
-              </label>
+            {/* Threshold fields — descriptive labels */}
+            <div className="rounded-md px-3 py-2" style={{ background: '#F8FAFC', border: '1px solid #F1F5F9' }}>
+              <p className="text-[10px] font-medium mb-2" style={{ color: '#94A3B8' }}>ALERTES AUTOMATIQUES</p>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2">
+                  <span className="text-[11px]" style={{ color: '#D97706' }}>Passe en à surveiller</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    className="input-field text-[12px] text-center font-medium"
+                    style={{ width: 52, padding: '3px 6px', color: '#D97706', border: '1px solid #FDE68A', background: '#FFFBEB' }}
+                    value={newDeadlineMonitorDays}
+                    onChange={e => setNewDeadlineMonitorDays(e.target.value)}
+                  />
+                  <span className="text-[11px]" style={{ color: '#94A3B8' }}>j avant</span>
+                </label>
+                <span style={{ color: '#E2E8F0' }}>·</span>
+                <label className="flex items-center gap-2">
+                  <span className="text-[11px]" style={{ color: '#DC2626' }}>Passe en urgent</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    className="input-field text-[12px] text-center font-medium"
+                    style={{ width: 52, padding: '3px 6px', color: '#DC2626', border: '1px solid #FECACA', background: '#FEF2F2' }}
+                    value={newDeadlineUrgentDays}
+                    onChange={e => setNewDeadlineUrgentDays(e.target.value)}
+                  />
+                  <span className="text-[11px]" style={{ color: '#94A3B8' }}>j avant</span>
+                </label>
+              </div>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex gap-1">

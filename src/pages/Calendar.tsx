@@ -2,18 +2,14 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
-import { StatusBadge } from '../components/ui/StatusBadge'
-import { computeStatus } from '../lib/utils'
-import { useUrgencySettings } from '../hooks/useUrgencySettings'
-import type { Case, CaseDeadline } from '../types'
+import type { Case, CaseDeadline, DeadlineUrgency } from '../types'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, X, MessageSquare, FileText } from 'lucide-react'
 
 interface DeadlineWithCase extends CaseDeadline {
   case_name: string
-  case_id: string
-  case_status: string
+  urgency: DeadlineUrgency
 }
 
 interface PrincipalDeadline {
@@ -21,12 +17,11 @@ interface PrincipalDeadline {
   case_name: string
   deadline: string
   deadline_name: string | null
-  status: string
+  urgency: DeadlineUrgency
 }
 
 export default function Calendar() {
   const { user } = useAuth()
-  const { urgentDays, monitorDays } = useUrgencySettings()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [cases, setCases] = useState<Case[]>([])
   const [deadlines, setDeadlines] = useState<DeadlineWithCase[]>([])
@@ -38,17 +33,22 @@ export default function Calendar() {
   useEffect(() => {
     if (!user) return
     Promise.all([
-      supabase.from('cases').select('*').eq('user_id', user.id),
-      supabase.from('case_deadlines').select('*').eq('user_id', user.id),
-      supabase.from('notes').select('*').eq('user_id', user.id),
+      // Only non-archived cases
+      supabase.from('cases').select('*').eq('user_id', user.id).eq('archived', false),
+      // Only non-completed deadlines
+      supabase.from('case_deadlines').select('*').eq('user_id', user.id).eq('completed', false),
     ]).then(([{ data: casesData }, { data: deadlinesData }]) => {
-      setCases((casesData as Case[]) || [])
-      const casesMap = new Map(((casesData as Case[]) || []).map(c => [c.id, c]))
-      const deadlinesList = ((deadlinesData as CaseDeadline[]) || []).map(d => ({
-        ...d,
-        case_name: casesMap.get(d.case_id)?.name || 'Unknown',
-        case_status: casesMap.get(d.case_id)?.status || 'stable',
-      }))
+      const activeCases = (casesData as Case[]) || []
+      setCases(activeCases)
+      const casesMap = new Map(activeCases.map(c => [c.id, c]))
+      // Only include deadlines whose case exists (not archived/deleted)
+      const deadlinesList = ((deadlinesData as CaseDeadline[]) || [])
+        .filter(d => casesMap.has(d.case_id))
+        .map(d => ({
+          ...d,
+          case_name: casesMap.get(d.case_id)?.name || 'Unknown',
+          urgency: ((d.urgency as DeadlineUrgency) || 'stable'),
+        }))
       setDeadlines(deadlinesList)
       setLoading(false)
     })
@@ -66,15 +66,15 @@ export default function Calendar() {
 
   const getDeadlinesForDay = (day: Date): (DeadlineWithCase | PrincipalDeadline)[] => {
     const dayStr = format(day, 'yyyy-MM-dd')
-    const additionalDL = deadlines.filter(d => d.deadline === dayStr)
+    const additionalDL = deadlines.filter(d => format(new Date(d.deadline), 'yyyy-MM-dd') === dayStr)
     const principalDL: PrincipalDeadline[] = cases
-      .filter(c => c.deadline && format(new Date(c.deadline), 'yyyy-MM-dd') === dayStr && !c.archived)
+      .filter(c => c.deadline && format(new Date(c.deadline), 'yyyy-MM-dd') === dayStr)
       .map(c => ({
         case_id: c.id,
         case_name: c.name,
         deadline: c.deadline!,
         deadline_name: c.deadline_name,
-        status: c.status,
+        urgency: ((c.deadline_urgency as DeadlineUrgency) || 'stable'),
       }))
     return [...principalDL, ...additionalDL]
   }
@@ -88,10 +88,10 @@ export default function Calendar() {
   const emptyDays = Array(firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1).fill(null)
   const allDays = [...emptyDays, ...daysInMonth]
 
-  const getStatusColor = (status: string) => {
-    if (status === 'urgent') return '#DC2626'
-    if (status === 'monitor') return '#D97706'
-    return '#16A34A'
+  const getUrgencyColor = (urgency: string) => {
+    if (urgency === 'urgent') return '#DC2626'
+    if (urgency === 'monitor') return '#D97706'
+    return '#10B981'
   }
 
   if (loading) return (
@@ -162,20 +162,19 @@ export default function Calendar() {
                   </div>
                   <div className="space-y-0.5 max-h-16 overflow-y-auto">
                     {dayDeadlines.map((dl, i) => {
-                      const dlName = ('deadline_name' in dl) ? (dl.deadline_name || 'Délai') : 'Délai'
-                      const status = ('case_status' in dl) ? dl.case_status : dl.status
+                      const dlName = ('deadline_name' in dl) ? (dl.deadline_name || 'Délai principal') : dl.name
                       return (
                         <div
                           key={`${dl.case_id}-${i}`}
-                          onClick={() => handleSelectCase(cases.find(c => c.id === dl.case_id)!)}
-                          className="px-1.5 py-0.5 rounded text-[10px] truncate hover:opacity-90 transition-opacity"
+                          onClick={() => { const c = cases.find(x => x.id === dl.case_id); if (c) handleSelectCase(c) }}
+                          className="px-1.5 py-0.5 rounded text-[10px] truncate hover:opacity-90 transition-opacity cursor-pointer"
                           style={{
-                            background: getStatusColor(status),
+                            background: getUrgencyColor(dl.urgency),
                             color: '#FFFFFF',
                           }}
-                          title={`${dlName} - ${dl.case_name}`}
+                          title={`${dlName} — ${dl.case_name}`}
                         >
-                          {dlName} • {dl.case_name}
+                          {dlName} · {dl.case_name}
                         </div>
                       )
                     })}
@@ -215,7 +214,17 @@ export default function Calendar() {
                     {selectedCase.client_name}
                   </p>
                   <div className="mt-3">
-                    <StatusBadge status={computeStatus(selectedCase.status, selectedCase.deadline, urgentDays, monitorDays)} />
+                    {(() => {
+                      const u = (selectedCase.deadline_urgency as DeadlineUrgency) || 'stable'
+                      const colors = { urgent: '#DC2626', monitor: '#D97706', stable: '#10B981' }
+                      const bgs = { urgent: '#FEF2F2', monitor: '#FFFBEB', stable: '#ECFDF5' }
+                      const labels = { urgent: 'Urgent', monitor: 'À surveiller', stable: 'Stable' }
+                      return (
+                        <span className="text-[11px] font-medium px-2 py-0.5 rounded-md" style={{ background: bgs[u], color: colors[u] }}>
+                          {labels[u]}
+                        </span>
+                      )
+                    })()}
                   </div>
                 </div>
 

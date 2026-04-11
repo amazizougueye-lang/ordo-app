@@ -88,6 +88,14 @@ export default function Dashboard() {
       ...prev,
       [caseId]: (prev[caseId] || []).map(d => d.id === deadlineId ? { ...d, completed: true } : d),
     }))
+    toast.success('Échéance marquée comme faite')
+  }
+
+  const completeMainDeadline = async (caseId: string, e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation()
+    await supabase.from('cases').update({ deadline: null, deadline_name: null, deadline_urgency: null }).eq('id', caseId)
+    setCases(prev => prev.map(x => x.id === caseId ? { ...x, deadline: null, deadline_name: null, deadline_urgency: null } : x))
+    toast.success('Délai principal marqué comme fait')
   }
 
   const toggleSort = (key: SortKey) => {
@@ -430,17 +438,18 @@ export default function Dashboard() {
                                     </p>
                                   </div>
                                 </div>
-                                {!dl.isMain && (
-                                  <button
-                                    onClick={e => completeDeadline(dl.id, c.id, e)}
-                                    className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors"
-                                    style={{ color: '#6B7280', border: '1px solid #E5E7EB' }}
-                                    onMouseEnter={e => { e.currentTarget.style.background = '#ECFDF5'; e.currentTarget.style.color = '#10B981'; e.currentTarget.style.borderColor = '#10B981' }}
-                                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB' }}
-                                  >
-                                    <Check size={11} /> Fait
-                                  </button>
-                                )}
+                                <button
+                                  onClick={e => dl.isMain
+                                    ? completeMainDeadline(c.id, e)
+                                    : completeDeadline(dl.id, c.id, e)
+                                  }
+                                  className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors"
+                                  style={{ color: '#6B7280', border: '1px solid #E5E7EB' }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = '#ECFDF5'; e.currentTarget.style.color = '#10B981'; e.currentTarget.style.borderColor = '#10B981' }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB' }}
+                                >
+                                  <Check size={11} /> Fait
+                                </button>
                               </div>
                             )
                           })

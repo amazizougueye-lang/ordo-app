@@ -2,10 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
-import { computeStatus } from '../lib/utils'
-import { useUrgencySettings } from '../hooks/useUrgencySettings'
 import { generatePdfContent, downloadPdf } from '../lib/pdfGenerator'
-import type { Case, CaseDeadline } from '../types'
+import type { Case, CaseDeadline, DeadlineUrgency } from '../types'
 import { format, differenceInDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { AlertCircle, Clock, CheckCircle, Archive, Calendar, Download } from 'lucide-react'
@@ -17,12 +15,24 @@ interface Stats {
   stable: number
   archived: number
   byType: Record<string, number>
-  upcomingDeadlines: Array<{ caseName: string, deadline: string, daysLeft: number, status: string }>
+  upcomingDeadlines: Array<{ caseName: string, deadline: string, daysLeft: number, urgency: DeadlineUrgency }>
+}
+
+// Determine effective urgency from manual setting + nearest deadline
+function getEffectiveUrgency(c: Case, extras: CaseDeadline[]): DeadlineUrgency {
+  const candidates: { deadline: string; urgency: DeadlineUrgency }[] = []
+  if (c.deadline) {
+    candidates.push({ deadline: c.deadline, urgency: (c.deadline_urgency as DeadlineUrgency) || 'stable' })
+  }
+  const activeExtras = extras.filter(d => !d.completed && (!d.snoozed_until || new Date(d.snoozed_until) <= new Date()))
+  activeExtras.forEach(d => candidates.push({ deadline: d.deadline, urgency: (d.urgency as DeadlineUrgency) || 'stable' }))
+  if (candidates.length === 0) return 'stable'
+  candidates.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+  return candidates[0].urgency
 }
 
 export default function Stats() {
   const { user } = useAuth()
-  const { urgentDays, monitorDays } = useUrgencySettings()
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -35,25 +45,32 @@ export default function Stats() {
       const allCases = (casesData as Case[]) || []
       const allDeadlines = (deadlinesData as CaseDeadline[]) || []
 
-      // Calculer les stats
       const activeCases = allCases.filter(c => !c.archived)
-      let urgent = 0, monitor = 0, stable = 0
+      const activeDeadlines = allDeadlines.filter(d => !d.completed)
 
+      // Map deadlines by case
+      const dlMap: Record<string, CaseDeadline[]> = {}
+      activeDeadlines.forEach(d => {
+        if (!dlMap[d.case_id]) dlMap[d.case_id] = []
+        dlMap[d.case_id].push(d)
+      })
+
+      let urgent = 0, monitor = 0, stable = 0
       activeCases.forEach(c => {
-        const status = computeStatus(c.status, c.deadline, urgentDays, monitorDays)
-        if (status === 'urgent') urgent++
-        else if (status === 'monitor') monitor++
+        const urgency = getEffectiveUrgency(c, dlMap[c.id] || [])
+        if (urgency === 'urgent') urgent++
+        else if (urgency === 'monitor') monitor++
         else stable++
       })
 
-      // Par type
+      // By type
       const byType: Record<string, number> = {}
       activeCases.forEach(c => {
         const type = c.case_type || 'autre'
         byType[type] = (byType[type] || 0) + 1
       })
 
-      // Délais à venir (prochains 30 jours)
+      // Upcoming deadlines (next 30 days) — main + additional
       const now = new Date()
       const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
       const upcomingDeadlines: Stats['upcomingDeadlines'] = []
@@ -62,36 +79,31 @@ export default function Stats() {
         if (c.deadline) {
           const deadline = new Date(c.deadline)
           if (deadline >= now && deadline <= in30Days) {
-            const daysLeft = differenceInDays(deadline, now)
-            const status = computeStatus(c.status, c.deadline, urgentDays, monitorDays)
             upcomingDeadlines.push({
               caseName: c.name,
               deadline: format(deadline, 'd MMM yyyy', { locale: fr }),
-              daysLeft,
-              status,
+              daysLeft: differenceInDays(deadline, now),
+              urgency: (c.deadline_urgency as DeadlineUrgency) || 'stable',
             })
           }
         }
       })
 
-      // Additional deadlines
-      allDeadlines.forEach(d => {
+      activeDeadlines.forEach(d => {
         const deadline = new Date(d.deadline)
         if (deadline >= now && deadline <= in30Days) {
-          const daysLeft = differenceInDays(deadline, now)
-          const c = allCases.find(c => c.id === d.case_id)
+          const c = allCases.find(x => x.id === d.case_id && !x.archived)
           if (c) {
             upcomingDeadlines.push({
-              caseName: `${c.name} - ${d.name}`,
+              caseName: `${c.name} — ${d.name}`,
               deadline: format(deadline, 'd MMM yyyy', { locale: fr }),
-              daysLeft,
-              status: computeStatus(c.status, d.deadline, urgentDays, monitorDays),
+              daysLeft: differenceInDays(deadline, now),
+              urgency: (d.urgency as DeadlineUrgency) || 'stable',
             })
           }
         }
       })
 
-      // Sort by daysLeft
       upcomingDeadlines.sort((a, b) => a.daysLeft - b.daysLeft)
 
       setStats({
@@ -105,15 +117,15 @@ export default function Stats() {
       })
       setLoading(false)
     })
-  }, [user, urgentDays, monitorDays])
+  }, [user])
 
-  const getStatusColor = (status: string) => {
-    if (status === 'urgent') return '#DC2626'
-    if (status === 'monitor') return '#D97706'
-    return '#16A34A'
+  const urgencyColor = (u: DeadlineUrgency) => {
+    if (u === 'urgent') return '#DC2626'
+    if (u === 'monitor') return '#D97706'
+    return '#10B981'
   }
 
-  const maxCases = stats ? Math.max(...Object.values(stats.byType)) : 1
+  const maxCases = stats ? Math.max(...Object.values(stats.byType), 1) : 1
 
   const handleExportOutlook = async () => {
     if (!user) return
@@ -130,9 +142,7 @@ export default function Stats() {
 
   if (loading) return (
     <AppLayout>
-      <div className="flex items-center justify-center h-full" style={{ color: '#94A3B8' }}>
-        Chargement…
-      </div>
+      <div className="flex items-center justify-center h-full" style={{ color: '#94A3B8' }}>Chargement…</div>
     </AppLayout>
   )
 
@@ -154,10 +164,7 @@ export default function Stats() {
           <button
             onClick={handleExportOutlook}
             className="flex items-center gap-2 px-4 py-2 rounded text-[13px] font-medium transition-colors"
-            style={{
-              background: '#3B82F6',
-              color: '#FFFFFF',
-            }}
+            style={{ background: '#3B82F6', color: '#FFFFFF' }}
             title="Exporter tous les délais en fichier .ics pour Outlook"
           >
             <Download size={14} />
@@ -169,58 +176,44 @@ export default function Stats() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           <div className="card p-5">
             <p className="text-[11px] mb-2" style={{ color: '#94A3B8' }}>Total</p>
-            <p className="text-[28px] font-semibold" style={{ color: '#0F172A' }}>
-              {stats.total}
-            </p>
+            <p className="text-[28px] font-semibold" style={{ color: '#0F172A' }}>{stats.total}</p>
             <p className="text-[12px] mt-2" style={{ color: '#94A3B8' }}>Dossiers actifs</p>
           </div>
-
           <div className="card p-5" style={{ borderTop: '3px solid #DC2626' }}>
             <div className="flex items-center gap-2 mb-2">
               <AlertCircle size={14} style={{ color: '#DC2626' }} />
               <p className="text-[11px]" style={{ color: '#94A3B8' }}>Urgent</p>
             </div>
-            <p className="text-[28px] font-semibold" style={{ color: '#DC2626' }}>
-              {stats.urgent}
-            </p>
+            <p className="text-[28px] font-semibold" style={{ color: '#DC2626' }}>{stats.urgent}</p>
             <p className="text-[12px] mt-2" style={{ color: '#94A3B8' }}>{Math.round(stats.total ? (stats.urgent / stats.total * 100) : 0)}% du total</p>
           </div>
-
           <div className="card p-5" style={{ borderTop: '3px solid #D97706' }}>
             <div className="flex items-center gap-2 mb-2">
               <Clock size={14} style={{ color: '#D97706' }} />
               <p className="text-[11px]" style={{ color: '#94A3B8' }}>Surveiller</p>
             </div>
-            <p className="text-[28px] font-semibold" style={{ color: '#D97706' }}>
-              {stats.monitor}
-            </p>
+            <p className="text-[28px] font-semibold" style={{ color: '#D97706' }}>{stats.monitor}</p>
             <p className="text-[12px] mt-2" style={{ color: '#94A3B8' }}>{Math.round(stats.total ? (stats.monitor / stats.total * 100) : 0)}% du total</p>
           </div>
-
-          <div className="card p-5" style={{ borderTop: '3px solid #16A34A' }}>
+          <div className="card p-5" style={{ borderTop: '3px solid #10B981' }}>
             <div className="flex items-center gap-2 mb-2">
-              <CheckCircle size={14} style={{ color: '#16A34A' }} />
+              <CheckCircle size={14} style={{ color: '#10B981' }} />
               <p className="text-[11px]" style={{ color: '#94A3B8' }}>Stable</p>
             </div>
-            <p className="text-[28px] font-semibold" style={{ color: '#16A34A' }}>
-              {stats.stable}
-            </p>
+            <p className="text-[28px] font-semibold" style={{ color: '#10B981' }}>{stats.stable}</p>
             <p className="text-[12px] mt-2" style={{ color: '#94A3B8' }}>{Math.round(stats.total ? (stats.stable / stats.total * 100) : 0)}% du total</p>
           </div>
-
           <div className="card p-5" style={{ borderTop: '3px solid #94A3B8' }}>
             <div className="flex items-center gap-2 mb-2">
               <Archive size={14} style={{ color: '#94A3B8' }} />
               <p className="text-[11px]" style={{ color: '#94A3B8' }}>Archivés</p>
             </div>
-            <p className="text-[28px] font-semibold" style={{ color: '#64748B' }}>
-              {stats.archived}
-            </p>
+            <p className="text-[28px] font-semibold" style={{ color: '#64748B' }}>{stats.archived}</p>
             <p className="text-[12px] mt-2" style={{ color: '#94A3B8' }}>Fermés</p>
           </div>
         </div>
 
-        {/* By Type Chart */}
+        {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div className="card p-6">
             <h3 className="text-[14px] font-semibold mb-4" style={{ color: '#0F172A' }}>Par type</h3>
@@ -233,11 +226,8 @@ export default function Stats() {
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
-                      className="bg-blue-500 h-2 rounded-full transition-all"
-                      style={{
-                        width: `${(count / maxCases) * 100}%`,
-                        backgroundColor: '#3B82F6',
-                      }}
+                      className="h-2 rounded-full transition-all"
+                      style={{ width: `${(count / maxCases) * 100}%`, backgroundColor: '#3B82F6' }}
                     />
                   </div>
                 </div>
@@ -245,7 +235,6 @@ export default function Stats() {
             </div>
           </div>
 
-          {/* Upcoming Deadlines */}
           <div className="card p-6">
             <div className="flex items-center gap-2 mb-4">
               <Calendar size={16} style={{ color: '#94A3B8' }} />
@@ -260,19 +249,17 @@ export default function Stats() {
                     key={i}
                     className="px-3 py-2 rounded-lg text-[12px]"
                     style={{
-                      background: `${getStatusColor(dl.status)}20`,
-                      borderLeft: `3px solid ${getStatusColor(dl.status)}`,
+                      background: `${urgencyColor(dl.urgency)}15`,
+                      borderLeft: `3px solid ${urgencyColor(dl.urgency)}`,
                     }}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <p className="font-medium truncate" style={{ color: '#0F172A' }}>
-                          {dl.caseName}
-                        </p>
+                        <p className="font-medium truncate" style={{ color: '#0F172A' }}>{dl.caseName}</p>
                         <p style={{ color: '#94A3B8' }}>{dl.deadline}</p>
                       </div>
-                      <p className="text-[11px] ml-2 shrink-0" style={{ color: getStatusColor(dl.status), fontWeight: 600 }}>
-                        {dl.daysLeft === 0 ? 'Aujourd\'hui' : `${dl.daysLeft}j`}
+                      <p className="text-[11px] ml-2 shrink-0 font-semibold" style={{ color: urgencyColor(dl.urgency) }}>
+                        {dl.daysLeft === 0 ? "Aujourd'hui" : `${dl.daysLeft}j`}
                       </p>
                     </div>
                   </div>
@@ -287,26 +274,29 @@ export default function Stats() {
           <h3 className="text-[14px] font-semibold mb-4" style={{ color: '#0F172A' }}>Distribution statuts</h3>
           <div className="flex items-center gap-8">
             <svg width="200" height="200" viewBox="0 0 200 200" className="shrink-0">
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#DC2626" strokeWidth="20" strokeDasharray={`${(stats.urgent / stats.total) * 503.3} 503.3`} />
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#D97706" strokeWidth="20" strokeDasharray={`${(stats.monitor / stats.total) * 503.3} 503.3`} strokeDashoffset={`${-(stats.urgent / stats.total) * 503.3}`} />
-              <circle cx="100" cy="100" r="80" fill="none" stroke="#16A34A" strokeWidth="20" strokeDasharray={`${(stats.stable / stats.total) * 503.3} 503.3`} strokeDashoffset={`${-((stats.urgent + stats.monitor) / stats.total) * 503.3}`} />
-              <text x="100" y="110" textAnchor="middle" fontSize="24" fontWeight="bold" fill="#0F172A">
-                {stats.total}
-              </text>
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#DC2626" strokeWidth="20"
+                strokeDasharray={`${stats.total ? (stats.urgent / stats.total) * 503.3 : 0} 503.3`} />
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#D97706" strokeWidth="20"
+                strokeDasharray={`${stats.total ? (stats.monitor / stats.total) * 503.3 : 0} 503.3`}
+                strokeDashoffset={`${stats.total ? -(stats.urgent / stats.total) * 503.3 : 0}`} />
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#10B981" strokeWidth="20"
+                strokeDasharray={`${stats.total ? (stats.stable / stats.total) * 503.3 : 0} 503.3`}
+                strokeDashoffset={`${stats.total ? -((stats.urgent + stats.monitor) / stats.total) * 503.3 : 0}`} />
+              <text x="100" y="110" textAnchor="middle" fontSize="24" fontWeight="bold" fill="#0F172A">{stats.total}</text>
             </svg>
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded" style={{ background: '#DC2626' }} />
-                <p className="text-[12px]" style={{ color: '#475569' }}>Urgent: {stats.urgent} ({Math.round(stats.total ? (stats.urgent / stats.total * 100) : 0)}%)</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded" style={{ background: '#D97706' }} />
-                <p className="text-[12px]" style={{ color: '#475569' }}>Surveiller: {stats.monitor} ({Math.round(stats.total ? (stats.monitor / stats.total * 100) : 0)}%)</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded" style={{ background: '#16A34A' }} />
-                <p className="text-[12px]" style={{ color: '#475569' }}>Stable: {stats.stable} ({Math.round(stats.total ? (stats.stable / stats.total * 100) : 0)}%)</p>
-              </div>
+              {[
+                { label: 'Urgent', count: stats.urgent, color: '#DC2626' },
+                { label: 'À surveiller', count: stats.monitor, color: '#D97706' },
+                { label: 'Stable', count: stats.stable, color: '#10B981' },
+              ].map(({ label, count, color }) => (
+                <div key={label} className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded" style={{ background: color }} />
+                  <p className="text-[12px]" style={{ color: '#475569' }}>
+                    {label}: {count} ({Math.round(stats.total ? (count / stats.total * 100) : 0)}%)
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
