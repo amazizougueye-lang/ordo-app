@@ -36,8 +36,6 @@ export default function CaseDetail() {
   const [deadline, setDeadline] = useState('')
   const [deadlineName, setDeadlineName] = useState('')
   const [deadlineUrgency, setDeadlineUrgency] = useState<DeadlineUrgency>('stable')
-  const [deadlineMonitorDays, setDeadlineMonitorDays] = useState('7')
-  const [deadlineUrgentDays, setDeadlineUrgentDays] = useState('3')
   const [caseType, setCaseType] = useState('')
   const [caseTypeCustom, setCaseTypeCustom] = useState('')
   const [caseNumber, setCaseNumber] = useState('')
@@ -56,6 +54,7 @@ export default function CaseDetail() {
   const [newDeadlineUrgentDays, setNewDeadlineUrgentDays] = useState('3')
   const [savingDeadline, setSavingDeadline] = useState(false)
   const [editingDocType, setEditingDocType] = useState<string | null>(null)
+  const [editingDeadlineUrgency, setEditingDeadlineUrgency] = useState<string | null>(null)
 
   const CASE_TYPES = [
     { value: 'civil', label: 'Civil' },
@@ -147,6 +146,8 @@ export default function CaseDetail() {
   const addDeadline = async () => {
     if (!c || !user || !newDeadlineName.trim() || !newDeadlineDate) return
     setSavingDeadline(true)
+    const mDays = parseInt(newDeadlineMonitorDays) || 7
+    const uDays = parseInt(newDeadlineUrgentDays) || 3
     const { data, error } = await supabase
       .from('case_deadlines')
       .insert({
@@ -155,6 +156,8 @@ export default function CaseDetail() {
         name: newDeadlineName.trim(),
         deadline: newDeadlineDate,
         urgency: newDeadlineUrgency,
+        monitor_days: mDays,
+        urgent_days: uDays,
         completed: false,
       })
       .select().single()
@@ -166,8 +169,26 @@ export default function CaseDetail() {
       setNewDeadlineName('')
       setNewDeadlineDate('')
       setNewDeadlineUrgency('stable')
+      setNewDeadlineMonitorDays('7')
+      setNewDeadlineUrgentDays('3')
     }
     setSavingDeadline(false)
+  }
+
+  const updateDeadlineUrgency = async (deadlineId: string, urgency: DeadlineUrgency) => {
+    await supabase.from('case_deadlines').update({ urgency }).eq('id', deadlineId)
+    setCaseDeadlines(prev => prev.map(d => d.id === deadlineId ? { ...d, urgency } : d))
+    setEditingDeadlineUrgency(null)
+  }
+
+  const completeMainDeadline = async () => {
+    if (!c) return
+    await supabase.from('cases').update({ deadline: null, deadline_name: null, deadline_urgency: null }).eq('id', c.id)
+    setCase(prev => prev ? { ...prev, deadline: null, deadline_name: null, deadline_urgency: null } : prev)
+    setDeadline('')
+    setDeadlineName('')
+    setDeadlineUrgency('stable')
+    toast.success('Délai principal marqué comme fait')
   }
 
   const completeDeadline = async (deadlineId: string) => {
@@ -454,98 +475,184 @@ export default function CaseDetail() {
             {/* Main deadline */}
             {c?.deadline && (
               <div
-                className="flex items-center justify-between px-4 py-3 rounded-lg"
-                style={{ background: URGENCY_COLORS[c.deadline_urgency || 'stable'].bg, border: `1px solid ${URGENCY_COLORS[c.deadline_urgency || 'stable'].dot}30` }}
+                className="rounded-lg"
+                style={{ background: URGENCY_COLORS[(c.deadline_urgency as DeadlineUrgency) || 'stable'].bg, border: `1px solid ${URGENCY_COLORS[(c.deadline_urgency as DeadlineUrgency) || 'stable'].dot}30` }}
               >
-                <div className="flex items-center gap-3">
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: URGENCY_COLORS[c.deadline_urgency || 'stable'].dot }} />
-                  <div>
-                    <p className="text-[13px] font-medium">
-                      {c.deadline_name
-                        ? <span style={{ color: '#0F172A' }}>{c.deadline_name}</span>
-                        : <span style={{ color: '#CBD5E1', fontStyle: 'italic' }}>Délai principal</span>
-                      }
-                    </p>
-                    <p className="text-[12px]" style={{ color: '#94A3B8' }}>{format(new Date(c.deadline), 'd MMM yyyy', { locale: fr })}</p>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: URGENCY_COLORS[(c.deadline_urgency as DeadlineUrgency) || 'stable'].dot, flexShrink: 0 }} />
+                    <div>
+                      <p className="text-[13px] font-medium">
+                        {c.deadline_name
+                          ? <span style={{ color: '#0F172A' }}>{c.deadline_name}</span>
+                          : <span style={{ color: '#CBD5E1', fontStyle: 'italic' }}>Délai principal</span>
+                        }
+                      </p>
+                      <p className="text-[12px]" style={{ color: '#94A3B8' }}>{format(new Date(c.deadline), 'd MMM yyyy', { locale: fr })}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const dl = deadlineLabel(c.deadline)
+                      return dl ? (
+                        <span className="text-[11px] font-medium" style={{ color: dl.color }}>{dl.text}</span>
+                      ) : null
+                    })()}
+                    {/* Toggle urgency edit */}
+                    <button
+                      onClick={() => setEditingDeadlineUrgency(editingDeadlineUrgency === 'main' ? null : 'main')}
+                      className="text-[10px] font-medium px-1.5 py-0.5 rounded transition-all"
+                      style={{ color: '#94A3B8', border: '1px solid #E2E8F0', background: 'rgba(255,255,255,0.7)' }}
+                      title="Modifier l'urgence"
+                    >
+                      Modifier
+                    </button>
+                    {/* Fait button */}
+                    <button
+                      onClick={completeMainDeadline}
+                      className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-all"
+                      style={{ color: '#6B7280', border: '1px solid #E5E7EB', background: 'rgba(255,255,255,0.7)' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#ECFDF5'; e.currentTarget.style.color = '#10B981'; e.currentTarget.style.borderColor = '#10B981' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.7)'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB' }}
+                      title="Marquer comme fait"
+                    >
+                      <Check size={11} /> Fait
+                    </button>
                   </div>
                 </div>
-                {(() => {
-                  const dl = deadlineLabel(c.deadline)
-                  return dl ? (
-                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-md" style={{ background: 'rgba(255,255,255,0.7)', color: dl.color }}>{dl.text}</span>
-                  ) : null
-                })()}
+                {/* Urgency editor for main deadline */}
+                {editingDeadlineUrgency === 'main' && (
+                  <div className="px-4 pb-3 flex gap-1">
+                    {(['stable', 'monitor', 'urgent'] as DeadlineUrgency[]).map(u => {
+                      const col = URGENCY_COLORS[u]
+                      const current = (c.deadline_urgency as DeadlineUrgency) || 'stable'
+                      return (
+                        <button
+                          key={u}
+                          onClick={async () => {
+                            await supabase.from('cases').update({ deadline_urgency: u }).eq('id', c.id)
+                            setCase(prev => prev ? { ...prev, deadline_urgency: u } : prev)
+                            setEditingDeadlineUrgency(null)
+                          }}
+                          className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-all"
+                          style={{
+                            background: current === u ? col.bg : '#F9FAFB',
+                            color: current === u ? col.text : '#9CA3AF',
+                            border: `1px solid ${current === u ? col.dot : '#E5E7EB'}`,
+                          }}
+                        >
+                          {col.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
             {/* Additional deadlines */}
             {caseDeadlines.filter(d => !d.completed).map(cd => {
               const dl = deadlineLabel(cd.deadline)
-              const uc = URGENCY_COLORS[cd.urgency || 'stable']
+              const uc = URGENCY_COLORS[(cd.urgency as DeadlineUrgency) || 'stable']
               const snoozed = isDeadlineSnoozed(cd)
+              const isEditingUrgency = editingDeadlineUrgency === cd.id
               return (
                 <div
                   key={cd.id}
-                  className="flex items-center justify-between px-4 py-3 rounded-lg"
+                  className="rounded-lg"
                   style={{
                     background: snoozed ? '#F9FAFB' : uc.bg,
                     border: `1px solid ${snoozed ? '#E5E7EB' : uc.dot + '30'}`,
                     opacity: snoozed ? 0.7 : 1,
                   }}
                 >
-                  <div className="flex items-center gap-3">
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: snoozed ? '#D1D5DB' : uc.dot }} />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-[13px] font-medium" style={{ color: '#0F172A' }}>{cd.name}</p>
-                        {snoozed && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: '#F3F4F6', color: '#9CA3AF' }}>
-                            Reporté à demain
-                          </span>
-                        )}
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: snoozed ? '#D1D5DB' : uc.dot, flexShrink: 0 }} />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-[13px] font-medium" style={{ color: '#0F172A' }}>{cd.name}</p>
+                          {snoozed && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: '#F3F4F6', color: '#9CA3AF' }}>
+                              Reporté à demain
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[12px]" style={{ color: '#94A3B8' }}>
+                          {format(new Date(cd.deadline), 'd MMM yyyy', { locale: fr })}
+                        </p>
                       </div>
-                      <p className="text-[12px]" style={{ color: '#94A3B8' }}>
-                        {format(new Date(cd.deadline), 'd MMM yyyy', { locale: fr })}
-                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {dl && !snoozed && (
+                        <span className="text-[11px] font-medium" style={{ color: dl.color }}>{dl.text}</span>
+                      )}
+                      {/* Toggle urgency edit */}
+                      <button
+                        onClick={() => setEditingDeadlineUrgency(isEditingUrgency ? null : cd.id)}
+                        className="text-[10px] font-medium px-1.5 py-0.5 rounded transition-all"
+                        style={{ color: '#94A3B8', border: '1px solid #E2E8F0', background: 'rgba(255,255,255,0.6)' }}
+                        title="Modifier l'urgence"
+                      >
+                        Modifier
+                      </button>
+                      {/* Snooze */}
+                      <button
+                        onClick={() => snoozeDeadline(cd.id)}
+                        disabled={snoozed}
+                        className="p-1.5 rounded transition-colors"
+                        title="Reporter à demain"
+                        style={{ color: snoozed ? '#E5E7EB' : '#D1D5DB' }}
+                        onMouseEnter={e => { if (!snoozed) { e.currentTarget.style.color = '#D97706'; e.currentTarget.style.background = '#FFFBEB' } }}
+                        onMouseLeave={e => { e.currentTarget.style.color = snoozed ? '#E5E7EB' : '#D1D5DB'; e.currentTarget.style.background = 'transparent' }}
+                      >
+                        <BellOff size={12} />
+                      </button>
+                      {/* Fait */}
+                      <button
+                        onClick={() => completeDeadline(cd.id)}
+                        className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-all"
+                        style={{ color: '#6B7280', border: '1px solid #E5E7EB' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#ECFDF5'; e.currentTarget.style.color = '#10B981'; e.currentTarget.style.borderColor = '#10B981' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB' }}
+                      >
+                        <Check size={11} /> Fait
+                      </button>
+                      {/* Delete */}
+                      <button
+                        onClick={() => deleteDeadline(cd.id)}
+                        className="p-1.5 rounded transition-colors"
+                        style={{ color: '#D1D5DB' }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#DC2626'; e.currentTarget.style.background = '#FEF2F2' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#D1D5DB'; e.currentTarget.style.background = 'transparent' }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {dl && !snoozed && (
-                      <span className="text-[11px] font-medium" style={{ color: dl.color }}>{dl.text}</span>
-                    )}
-                    {/* Snooze */}
-                    <button
-                      onClick={() => snoozeDeadline(cd.id)}
-                      disabled={snoozed}
-                      className="p-1.5 rounded transition-colors"
-                      title="Reporter à demain"
-                      style={{ color: snoozed ? '#E5E7EB' : '#D1D5DB' }}
-                      onMouseEnter={e => { if (!snoozed) { e.currentTarget.style.color = '#D97706'; e.currentTarget.style.background = '#FFFBEB' } }}
-                      onMouseLeave={e => { e.currentTarget.style.color = snoozed ? '#E5E7EB' : '#D1D5DB'; e.currentTarget.style.background = 'transparent' }}
-                    >
-                      <BellOff size={12} />
-                    </button>
-                    {/* Fait */}
-                    <button
-                      onClick={() => completeDeadline(cd.id)}
-                      className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-all"
-                      style={{ color: '#6B7280', border: '1px solid #E5E7EB' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#ECFDF5'; e.currentTarget.style.color = '#10B981'; e.currentTarget.style.borderColor = '#10B981' }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB' }}
-                    >
-                      <Check size={11} /> Fait
-                    </button>
-                    {/* Delete */}
-                    <button
-                      onClick={() => deleteDeadline(cd.id)}
-                      className="p-1.5 rounded transition-colors"
-                      style={{ color: '#D1D5DB' }}
-                      onMouseEnter={e => { e.currentTarget.style.color = '#DC2626'; e.currentTarget.style.background = '#FEF2F2' }}
-                      onMouseLeave={e => { e.currentTarget.style.color = '#D1D5DB'; e.currentTarget.style.background = 'transparent' }}
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
+                  {/* Urgency editor for this deadline */}
+                  {isEditingUrgency && (
+                    <div className="px-4 pb-3 flex gap-1">
+                      {(['stable', 'monitor', 'urgent'] as DeadlineUrgency[]).map(u => {
+                        const col = URGENCY_COLORS[u]
+                        const current = (cd.urgency as DeadlineUrgency) || 'stable'
+                        return (
+                          <button
+                            key={u}
+                            onClick={() => updateDeadlineUrgency(cd.id, u)}
+                            className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-all"
+                            style={{
+                              background: current === u ? col.bg : '#F9FAFB',
+                              color: current === u ? col.text : '#9CA3AF',
+                              border: `1px solid ${current === u ? col.dot : '#E5E7EB'}`,
+                            }}
+                          >
+                            {col.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -553,7 +660,7 @@ export default function CaseDetail() {
 
           {/* Add deadline form */}
           <div className="space-y-2">
-            <div className="flex gap-2 mb-2">
+            <div className="flex gap-2">
               <input
                 type="text"
                 className="input-field"
@@ -568,6 +675,36 @@ export default function CaseDetail() {
                 value={newDeadlineDate}
                 onChange={e => setNewDeadlineDate(e.target.value)}
               />
+            </div>
+            {/* Threshold fields — discrete, below date */}
+            <div className="flex items-center gap-3 pl-0.5">
+              <span className="text-[11px]" style={{ color: '#CBD5E1' }}>Alertes auto :</span>
+              <label className="flex items-center gap-1.5">
+                <span className="text-[11px]" style={{ color: '#94A3B8' }}>🟡 dans</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  className="input-field text-[11px] text-center"
+                  style={{ width: 48, padding: '3px 6px', color: '#475569' }}
+                  value={newDeadlineMonitorDays}
+                  onChange={e => setNewDeadlineMonitorDays(e.target.value)}
+                />
+                <span className="text-[11px]" style={{ color: '#94A3B8' }}>j</span>
+              </label>
+              <label className="flex items-center gap-1.5">
+                <span className="text-[11px]" style={{ color: '#94A3B8' }}>🔴 dans</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  className="input-field text-[11px] text-center"
+                  style={{ width: 48, padding: '3px 6px', color: '#475569' }}
+                  value={newDeadlineUrgentDays}
+                  onChange={e => setNewDeadlineUrgentDays(e.target.value)}
+                />
+                <span className="text-[11px]" style={{ color: '#94A3B8' }}>j</span>
+              </label>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex gap-1">

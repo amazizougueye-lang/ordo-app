@@ -12,7 +12,7 @@ import type { Note } from '../types'
 import { toast } from 'sonner'
 
 type SortKey = 'deadline' | 'created_at'
-type FilterStatus = CaseStatus | 'all' | 'archived' | 'week'
+type FilterStatus = CaseStatus | 'all' | 'archived'
 
 const URGENCY_COLORS: Record<DeadlineUrgency, { bar: string; badge: string; badgeText: string; label: string }> = {
   urgent:  { bar: '#DC2626', badge: '#FEF2F2', badgeText: '#DC2626', label: 'Urgent' },
@@ -125,16 +125,6 @@ export default function Dashboard() {
       if (q && !c.name.toLowerCase().includes(q) && !c.client_name.toLowerCase().includes(q)) return false
       if (filter === 'archived') return c.archived
       if (c.archived) return false
-      if (filter === 'week') {
-        const now = new Date()
-        const in7 = new Date(now)
-        in7.setDate(now.getDate() + 7)
-        const all = getAllActiveDeadlines(c)
-        return all.some(d => {
-          const date = new Date(d.deadline)
-          return date >= now && date <= in7
-        })
-      }
       if (filter !== 'all') {
         const nearest = getNearestActiveDeadline(c)
         const urgency = nearest?.urgency || 'stable'
@@ -187,13 +177,25 @@ export default function Dashboard() {
         <div className="max-w-[860px] mx-auto px-12 py-12">
 
           {/* ── Page title ── */}
-          <div className="mb-10">
-            <h1 className="text-[28px] font-semibold mb-1" style={{ color: '#111827', letterSpacing: '-0.03em' }}>
-              Dossiers
-            </h1>
-            <p className="text-[14px]" style={{ color: '#9CA3AF' }}>
-              Gérez vos dossiers et délais juridiques
-            </p>
+          <div className="flex items-center justify-between mb-10">
+            <div>
+              <h1 className="text-[28px] font-semibold mb-1" style={{ color: '#111827', letterSpacing: '-0.03em' }}>
+                Dossiers
+              </h1>
+              <p className="text-[14px]" style={{ color: '#9CA3AF' }}>
+                Gérez vos dossiers et délais juridiques
+              </p>
+            </div>
+            <Link
+              to="/upload"
+              className="flex items-center gap-1.5 text-[13px] font-medium rounded-lg transition-all duration-150"
+              style={{ height: 38, paddingLeft: 16, paddingRight: 16, background: '#111827', color: '#FFFFFF' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#1F2937'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#111827'; e.currentTarget.style.transform = 'translateY(0)' }}
+            >
+              <Plus size={13} strokeWidth={2.5} />
+              Nouveau dossier
+            </Link>
           </div>
 
           {/* ── Stats row ── */}
@@ -231,7 +233,6 @@ export default function Dashboard() {
                 ['urgent', 'Urgents'],
                 ['monitor', 'À surveiller'],
                 ['stable', 'Stables'],
-                ['week', 'Cette semaine'],
                 ['archived', 'Archivés'],
               ] as [FilterStatus, string][]).map(([s, label]) => (
                 <button
@@ -255,17 +256,6 @@ export default function Dashboard() {
               <SortBtn k="deadline" label="Délai" />
               <SortBtn k="created_at" label="Date" />
             </div>
-
-            <Link
-              to="/upload"
-              className="flex items-center gap-1.5 text-[13px] font-medium rounded-lg transition-all duration-150"
-              style={{ height: 38, paddingLeft: 16, paddingRight: 16, background: '#111827', color: '#FFFFFF' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#1F2937'; e.currentTarget.style.transform = 'translateY(-1px)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#111827'; e.currentTarget.style.transform = 'translateY(0)' }}
-            >
-              <Plus size={13} strokeWidth={2.5} />
-              Nouveau
-            </Link>
           </div>
 
           {/* ── Case list ── */}

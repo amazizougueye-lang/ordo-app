@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import type { Case, CaseDeadline, DeadlineUrgency } from '../types'
-import { format, differenceInDays, isPast, isToday } from 'date-fns'
+import { format, differenceInDays, isPast, isToday, addDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { CalendarClock, ArrowRight, Check } from 'lucide-react'
 import { toast } from 'sonner'
@@ -84,7 +84,14 @@ export default function Today() {
     toast.success('Échéance marquée comme faite')
   }
 
+  const completeMainDeadline = async (caseId: string) => {
+    await supabase.from('cases').update({ deadline: null, deadline_name: null, deadline_urgency: null }).eq('id', caseId)
+    setCases(prev => prev.map(c => c.id === caseId ? { ...c, deadline: null, deadline_name: null, deadline_urgency: null } : c))
+    toast.success('Délai principal marqué comme fait')
+  }
+
   const today = new Date()
+  const in7 = addDays(today, 7)
 
   // Enrich cases with nearest active deadline
   const enriched = cases
@@ -94,6 +101,12 @@ export default function Today() {
   const urgentCases  = enriched.filter(({ nearest }) => nearest.urgency === 'urgent')
   const monitorCases = enriched.filter(({ nearest }) => nearest.urgency === 'monitor')
   const stableCases  = enriched.filter(({ nearest }) => nearest.urgency === 'stable')
+
+  // Cette semaine — cases with nearest deadline within next 7 days
+  const weekCases = enriched.filter(({ nearest }) => {
+    const d = new Date(nearest.deadline)
+    return d >= today && d <= in7
+  })
 
   const deadlineLabel = (deadlineStr: string) => {
     const d = new Date(deadlineStr)
@@ -131,18 +144,19 @@ export default function Today() {
         </Link>
         <div className="flex items-center gap-3 shrink-0 ml-3">
           <span className="text-[12px] font-medium" style={{ color: dl.color }}>{dl.text}</span>
-          {!nearest.isMain && nearest.id && (
-            <button
-              onClick={() => completeDeadline(nearest.id!, c.id)}
-              className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-all"
-              style={{ color: '#6B7280', border: '1px solid #E5E7EB' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#ECFDF5'; e.currentTarget.style.color = '#10B981'; e.currentTarget.style.borderColor = '#10B981' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB' }}
-              title="Marquer comme fait"
-            >
-              <Check size={11} /> Fait
-            </button>
-          )}
+          <button
+            onClick={() => nearest.isMain
+              ? completeMainDeadline(c.id)
+              : completeDeadline(nearest.id!, c.id)
+            }
+            className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-all"
+            style={{ color: '#6B7280', border: '1px solid #E5E7EB' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#ECFDF5'; e.currentTarget.style.color = '#10B981'; e.currentTarget.style.borderColor = '#10B981' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB' }}
+            title="Marquer comme fait"
+          >
+            <Check size={11} /> Fait
+          </button>
           <Link to={`/dossier/${c.id}`}>
             <ArrowRight size={14} style={{ color: '#CBD5E1' }} />
           </Link>
@@ -188,19 +202,38 @@ export default function Today() {
 
         {loading ? (
           <p className="text-[13px]" style={{ color: '#94A3B8' }}>Chargement…</p>
-        ) : enriched.length === 0 ? (
-          <div className="card p-10 text-center">
-            <p className="text-[14px] font-medium mb-1" style={{ color: '#0F172A' }}>Aucun dossier actif</p>
-            <p className="text-[13px]" style={{ color: '#94A3B8' }}>
-              Créez votre premier dossier pour voir vos délais ici
-            </p>
-          </div>
         ) : (
-          <div className="space-y-8">
-            <Section title="🔴 Urgent" items={urgentCases} color="#DC2626" />
-            <Section title="🟡 À surveiller" items={monitorCases} color="#D97706" />
-            <Section title="🟢 Stable" items={stableCases} color="#10B981" />
-          </div>
+          <>
+            {/* ── Aujourd'hui — par urgence ── */}
+            {enriched.length === 0 ? (
+              <div className="card p-10 text-center mb-10">
+                <p className="text-[14px] font-medium mb-1" style={{ color: '#0F172A' }}>Aucun dossier actif</p>
+                <p className="text-[13px]" style={{ color: '#94A3B8' }}>
+                  Créez votre premier dossier pour voir vos délais ici
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-8 mb-12">
+                <Section title="🔴 Urgent" items={urgentCases} color="#DC2626" />
+                <Section title="🟡 À surveiller" items={monitorCases} color="#D97706" />
+                <Section title="🟢 Stable" items={stableCases} color="#10B981" />
+              </div>
+            )}
+
+            {/* ── Cette semaine ── */}
+            {weekCases.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div style={{ height: 1, flex: 1, background: '#E2E8F0' }} />
+                  <p className="text-[12px] font-medium px-3" style={{ color: '#94A3B8' }}>📅 Cette semaine</p>
+                  <div style={{ height: 1, flex: 1, background: '#E2E8F0' }} />
+                </div>
+                <div className="space-y-2">
+                  {weekCases.map(({ c, nearest }) => <CaseRow key={`week-${c.id}`} c={c} nearest={nearest} />)}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </AppLayout>
