@@ -10,63 +10,29 @@ export default function Profil() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const [reminderEnabled, setReminderEnabled] = useState(true)
-  const [urgentDays, setUrgentDays] = useState('1')
-  const [monitorDays, setMonitorDays] = useState('7')
   const [saving, setSaving] = useState(false)
 
-  // Load saved settings from database on mount
   useEffect(() => {
     if (!user) return
     supabase
       .from('profiles')
-      .select('daily_reminder_enabled, urgent_days, monitor_days')
+      .select('daily_reminder_enabled')
       .eq('id', user.id)
       .maybeSingle()
-      .then(({ data, error }) => {
-        console.log('Load profile data:', { data, error })
-        if (error) {
-          console.error('Load error:', error)
-        }
-        if (data) {
-          console.log('Setting values:', {
-            reminderEnabled: data.daily_reminder_enabled ?? true,
-            urgentDays: String(data.urgent_days ?? 1),
-            monitorDays: String(data.monitor_days ?? 7),
-          })
-          setReminderEnabled(data.daily_reminder_enabled ?? true)
-          setUrgentDays(String(data.urgent_days ?? 1))
-          setMonitorDays(String(data.monitor_days ?? 7))
-        } else {
-          console.log('No profile data found for user:', user.id)
-        }
+      .then(({ data }) => {
+        if (data) setReminderEnabled(data.daily_reminder_enabled ?? true)
       })
   }, [user])
 
   const handleSave = async () => {
     if (!user) return
-    const urgent = Math.max(0, parseInt(urgentDays) || 1)
-    const monitor = Math.max(urgent + 1, parseInt(monitorDays) || 7)
     setSaving(true)
-    console.log('Saving:', { id: user.id, urgent_days: urgent, monitor_days: monitor })
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('profiles')
-      .upsert(
-        {
-          id: user.id,
-          daily_reminder_enabled: reminderEnabled,
-          urgent_days: urgent,
-          monitor_days: monitor,
-        },
-        { onConflict: 'id' }
-      )
+      .upsert({ id: user.id, daily_reminder_enabled: reminderEnabled }, { onConflict: 'id' })
       .select()
-    console.log('Save response:', { data, error })
-    if (error) {
-      console.error('Save error:', error)
-      toast.error(`Erreur: ${error.message}`)
-    } else {
-      toast.success('Profil enregistré')
-    }
+    if (error) toast.error(`Erreur: ${error.message}`)
+    else toast.success('Profil enregistré')
     setSaving(false)
   }
 
@@ -78,10 +44,7 @@ export default function Profil() {
   return (
     <AppLayout>
       <div className="max-w-lg mx-auto px-6 py-8">
-        <h1
-          className="text-[22px] font-semibold mb-8"
-          style={{ color: '#0F172A', letterSpacing: '-0.02em' }}
-        >
+        <h1 className="text-[22px] font-semibold mb-8" style={{ color: '#0F172A', letterSpacing: '-0.02em' }}>
           Profil
         </h1>
 
@@ -89,47 +52,6 @@ export default function Profil() {
         <div className="card p-5 mb-4">
           <p className="section-label mb-3">Compte</p>
           <p className="text-[13px]" style={{ color: '#475569' }}>{user?.email}</p>
-        </div>
-
-        {/* Urgency thresholds */}
-        <div className="card p-5 mb-4">
-          <p className="section-label mb-4">Seuils d'urgence (jours)</p>
-          <div className="space-y-4">
-            <div>
-              <label className="field-label">Urgent si délai ≤</label>
-              <input
-                type="number"
-                min="0"
-                className="input-field"
-                value={urgentDays}
-                onChange={e => setUrgentDays(e.target.value)}
-                placeholder="1"
-              />
-              <p className="text-[11px] mt-1" style={{ color: '#94A3B8' }}>Jours avant la deadline</p>
-            </div>
-            <div>
-              <label className="field-label">À surveiller si délai ≤</label>
-              <input
-                type="number"
-                min="1"
-                className="input-field"
-                value={monitorDays}
-                onChange={e => setMonitorDays(e.target.value)}
-                placeholder="7"
-              />
-              <p className="text-[11px] mt-1" style={{ color: '#94A3B8' }}>Jours avant la deadline (doit être &gt; Urgent)</p>
-            </div>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="btn-primary flex items-center gap-2"
-            >
-              {saving
-                ? <><Loader2 size={14} className="animate-spin" /> Enregistrement…</>
-                : <><CheckCircle size={14} /> Enregistrer</>
-              }
-            </button>
-          </div>
         </div>
 
         {/* Daily reminder */}
@@ -154,8 +76,6 @@ export default function Profil() {
                 />
               </button>
             </div>
-
-
             <button
               onClick={handleSave}
               disabled={saving}
@@ -163,7 +83,7 @@ export default function Profil() {
             >
               {saving
                 ? <><Loader2 size={14} className="animate-spin" /> Enregistrement…</>
-                : <><CheckCircle size={14} /> Enregistrer rappel</>
+                : <><CheckCircle size={14} /> Enregistrer</>
               }
             </button>
           </div>

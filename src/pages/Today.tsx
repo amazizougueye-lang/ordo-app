@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { computeEffectiveUrgency } from '../lib/utils'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import type { Case, CaseDeadline, DeadlineUrgency } from '../types'
@@ -46,6 +47,8 @@ export default function Today() {
     })
   }, [user])
 
+  const URGENCY_RANK: Record<DeadlineUrgency, number> = { urgent: 2, monitor: 1, stable: 0 }
+
   const getNearestActive = useCallback((c: Case, dlMap: Record<string, CaseDeadline[]>): NearestDeadline | null => {
     const now = new Date()
     const candidates: NearestDeadline[] = []
@@ -55,7 +58,11 @@ export default function Today() {
         id: null,
         name: c.deadline_name || 'Délai principal',
         deadline: c.deadline,
-        urgency: (c.deadline_urgency || 'stable') as DeadlineUrgency,
+        // Main deadline: no per-deadline thresholds, manual urgency only
+        urgency: computeEffectiveUrgency(
+          (c.deadline_urgency || 'stable') as DeadlineUrgency,
+          c.deadline
+        ),
         isMain: true,
       })
     }
@@ -67,12 +74,23 @@ export default function Today() {
       id: d.id,
       name: d.name,
       deadline: d.deadline,
-      urgency: (d.urgency || 'stable') as DeadlineUrgency,
+      // Apply threshold-based auto-escalation
+      urgency: computeEffectiveUrgency(
+        (d.urgency || 'stable') as DeadlineUrgency,
+        d.deadline,
+        d.monitor_days ?? null,
+        d.urgent_days ?? null
+      ),
       isMain: false,
     }))
 
     if (candidates.length === 0) return null
-    return candidates.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())[0]
+    // Return most urgent (highest urgency rank, then nearest date)
+    return candidates.sort((a, b) => {
+      const rankDiff = URGENCY_RANK[b.urgency] - URGENCY_RANK[a.urgency]
+      if (rankDiff !== 0) return rankDiff
+      return new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+    })[0]
   }, [])
 
   const completeDeadline = async (deadlineId: string, caseId: string) => {

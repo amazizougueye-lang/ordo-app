@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import type { Case, CaseStatus, CaseDeadline, DeadlineUrgency } from '../types'
+import { computeEffectiveUrgency } from '../lib/utils'
 import { format, differenceInDays, isPast, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Search, Pin, Plus, ChevronDown, ChevronUp, Archive, Trash2, Check, MessageSquare } from 'lucide-react'
@@ -103,28 +104,52 @@ export default function Dashboard() {
     else { setSortKey(key); setSortAsc(true) }
   }
 
-  // Returns all deadlines for a case (main + additional), excluding completed
+  const URGENCY_RANK: Record<DeadlineUrgency, number> = { urgent: 2, monitor: 1, stable: 0 }
+
+  // Returns all active deadlines with effective urgency applied (auto-escalation from thresholds)
   const getAllActiveDeadlines = (c: Case) => {
     const mainDl = c.deadline ? [{
       id: `main-${c.id}`,
       name: c.deadline_name || 'Principal',
       deadline: c.deadline,
-      urgency: (c.deadline_urgency || 'stable') as DeadlineUrgency,
+      // Main deadline: manual only (no per-deadline thresholds on cases table)
+      urgency: computeEffectiveUrgency(
+        (c.deadline_urgency || 'stable') as DeadlineUrgency,
+        c.deadline
+      ),
+      monitor_days: null as null,
+      urgent_days: null as null,
       completed: false,
       snoozed_until: null,
       isMain: true,
     }] : []
     const extraDls = (deadlinesByCase[c.id] || [])
       .filter(d => !d.completed)
-      .map(d => ({ ...d, isMain: false }))
+      .map(d => ({
+        ...d,
+        // Apply threshold-based auto-escalation
+        urgency: computeEffectiveUrgency(
+          (d.urgency || 'stable') as DeadlineUrgency,
+          d.deadline,
+          d.monitor_days ?? null,
+          d.urgent_days ?? null
+        ),
+        isMain: false,
+      }))
     return [...mainDl, ...extraDls].sort((a, b) =>
       new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
     )
   }
 
-  const getNearestActiveDeadline = (c: Case) => {
+  // Returns the most urgent active deadline (highest urgency, then nearest date)
+  const getMostUrgentDeadline = (c: Case) => {
     const all = getAllActiveDeadlines(c)
-    return all.length > 0 ? all[0] : null
+    if (all.length === 0) return null
+    return all.sort((a, b) => {
+      const rankDiff = URGENCY_RANK[b.urgency as DeadlineUrgency] - URGENCY_RANK[a.urgency as DeadlineUrgency]
+      if (rankDiff !== 0) return rankDiff
+      return new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+    })[0]
   }
 
   const filtered = cases
@@ -134,8 +159,8 @@ export default function Dashboard() {
       if (filter === 'archived') return c.archived
       if (c.archived) return false
       if (filter !== 'all') {
-        const nearest = getNearestActiveDeadline(c)
-        const urgency = nearest?.urgency || 'stable'
+        const top = getMostUrgentDeadline(c)
+        const urgency = top?.urgency || 'stable'
         if (urgency !== (filter as string)) return false
       }
       return true
@@ -144,8 +169,14 @@ export default function Dashboard() {
       if (a.pinned && !b.pinned) return -1
       if (!a.pinned && b.pinned) return 1
       if (sortKey === 'deadline') {
-        const da = getNearestActiveDeadline(a)?.deadline ? new Date(getNearestActiveDeadline(a)!.deadline).getTime() : Infinity
-        const db = getNearestActiveDeadline(b)?.deadline ? new Date(getNearestActiveDeadline(b)!.deadline).getTime() : Infinity
+        const topA = getMostUrgentDeadline(a)
+        const topB = getMostUrgentDeadline(b)
+        // Primary: urgency descending (urgent=2 first)
+        const rankDiff = URGENCY_RANK[(topB?.urgency || 'stable') as DeadlineUrgency] - URGENCY_RANK[(topA?.urgency || 'stable') as DeadlineUrgency]
+        if (rankDiff !== 0) return sortAsc ? rankDiff : -rankDiff
+        // Secondary: deadline date ascending
+        const da = topA?.deadline ? new Date(topA.deadline).getTime() : Infinity
+        const db = topB?.deadline ? new Date(topB.deadline).getTime() : Infinity
         return sortAsc ? da - db : db - da
       }
       const da = new Date(a.created_at).getTime()
@@ -165,8 +196,8 @@ export default function Dashboard() {
 
   // Stats
   const active = cases.filter(c => !c.archived)
-  const urgentCount = active.filter(c => (getNearestActiveDeadline(c)?.urgency || 'stable') === 'urgent').length
-  const monitorCount = active.filter(c => (getNearestActiveDeadline(c)?.urgency || 'stable') === 'monitor').length
+  const urgentCount = active.filter(c => (getMostUrgentDeadline(c)?.urgency || 'stable') === 'urgent').length
+  const monitorCount = active.filter(c => (getMostUrgentDeadline(c)?.urgency || 'stable') === 'monitor').length
 
   const SortBtn = ({ k, label }: { k: SortKey; label: string }) => (
     <button
@@ -288,9 +319,9 @@ export default function Dashboard() {
           ) : (
             <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #EBEBEB', background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
               {filtered.map((c, idx) => {
-                const nearest = getNearestActiveDeadline(c)
-                const dl = deadlineInfo(nearest?.deadline || null)
-                const uc = URGENCY_COLORS[nearest?.urgency || 'stable']
+                const top = getMostUrgentDeadline(c)
+                const dl = deadlineInfo(top?.deadline || null)
+                const uc = URGENCY_COLORS[(top?.urgency || 'stable') as DeadlineUrgency]
                 const allActive = getAllActiveDeadlines(c)
                 const isOpen = openDropdown === c.id
 
