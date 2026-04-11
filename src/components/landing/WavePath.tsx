@@ -79,7 +79,7 @@ export function WavePath({ className = '' }: WavePathProps) {
           <path
             ref={path}
             className="fill-none"
-            stroke="#E2E8F0"
+            stroke="#e5e7eb"
             strokeWidth={1}
           />
         </svg>

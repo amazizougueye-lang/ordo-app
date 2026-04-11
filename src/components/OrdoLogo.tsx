@@ -1,8 +1,8 @@
 export function OrdoLogo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
   const sizes = {
-    sm: { text: 16, dot: 5 },
-    md: { text: 20, dot: 6 },
-    lg: { text: 28, dot: 8 },
+    sm: { text: 15, dot: 4 },
+    md: { text: 18, dot: 5 },
+    lg: { text: 26, dot: 7 },
   }
   const s = sizes[size]
 
@@ -13,15 +13,15 @@ export function OrdoLogo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
           width: s.dot,
           height: s.dot,
           borderRadius: '50%',
-          background: '#1E293B',
+          background: '#1a1a2e',
         }}
       />
       <span
         style={{
           fontSize: s.text,
-          fontWeight: 700,
-          color: '#0F172A',
-          letterSpacing: '-0.03em',
+          fontWeight: 600,
+          color: '#1a1a2e',
+          letterSpacing: '-0.02em',
           lineHeight: 1,
         }}
       >

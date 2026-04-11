@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 
 function FloatingPaths({ position }: { position: number }) {
-  const paths = Array.from({ length: 24 }, (_, i) => ({
+  const paths = Array.from({ length: 18 }, (_, i) => ({
     id: i,
     d: `M-${380 - i * 5 * position} -${189 + i * 6}C-${
       380 - i * 5 * position
@@ -10,8 +10,8 @@ function FloatingPaths({ position }: { position: number }) {
     } ${343 - i * 6}C${616 - i * 5 * position} ${470 - i * 6} ${
       684 - i * 5 * position
     } ${875 - i * 6} ${684 - i * 5 * position} ${875 - i * 6}`,
-    color: `rgba(15,23,42,${0.05 + i * 0.02})`,
-    width: 0.5 + i * 0.02,
+    opacity: 0.02 + i * 0.008,
+    width: 0.4 + i * 0.015,
   }))
 
   return (
@@ -26,20 +26,19 @@ function FloatingPaths({ position }: { position: number }) {
           <motion.path
             key={path.id}
             d={path.d}
-            stroke="currentColor"
+            stroke="#1a1a2e"
             strokeWidth={path.width}
-            strokeOpacity={0.05 + path.id * 0.02}
-            initial={{ pathLength: 0.3, opacity: 0.4 }}
+            strokeOpacity={path.opacity}
+            initial={{ pathLength: 0.3, opacity: path.opacity * 0.5 }}
             animate={{
               pathLength: 1,
-              opacity: [0.2, 0.4, 0.2],
+              opacity: [path.opacity * 0.5, path.opacity, path.opacity * 0.5],
             }}
             transition={{
-              duration: 15 + Math.random() * 10,
+              duration: 20 + Math.random() * 10,
               repeat: Infinity,
               ease: "linear",
             }}
-            style={{ color: '#0F172A' }}
           />
         ))}
       </svg>
@@ -53,9 +52,9 @@ export function BackgroundPaths({ className = '' }: { className?: string }) {
       <FloatingPaths position={1} />
       <FloatingPaths position={-1} />
       {/* Gradient overlays */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/50 to-white pointer-events-none" />
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-slate-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/60 to-white pointer-events-none" />
+      <div className="absolute top-0 left-1/3 w-80 h-80 rounded-full blur-3xl pointer-events-none" style={{ background: 'rgba(37,99,235,0.03)' }} />
+      <div className="absolute bottom-0 right-1/3 w-80 h-80 rounded-full blur-3xl pointer-events-none" style={{ background: 'rgba(26,26,46,0.02)' }} />
     </div>
   )
 }
@@ -69,21 +68,21 @@ export function SpotlightBackground() {
         className="absolute inset-0"
         style={{
           background: `
-            radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.08), transparent),
-            radial-gradient(ellipse 60% 40% at 80% 50%, rgba(15, 23, 42, 0.03), transparent),
-            radial-gradient(ellipse 60% 40% at 20% 80%, rgba(15, 23, 42, 0.02), transparent)
+            radial-gradient(ellipse 80% 50% at 50% -20%, rgba(37, 99, 235, 0.04), transparent),
+            radial-gradient(ellipse 60% 40% at 80% 50%, rgba(26, 26, 46, 0.02), transparent),
+            radial-gradient(ellipse 60% 40% at 20% 80%, rgba(26, 26, 46, 0.01), transparent)
           `
         }}
       />
       {/* Subtle grid pattern */}
       <div
-        className="absolute inset-0 opacity-[0.015]"
+        className="absolute inset-0 opacity-[0.008]"
         style={{
           backgroundImage: `
-            linear-gradient(to right, #0F172A 1px, transparent 1px),
-            linear-gradient(to bottom, #0F172A 1px, transparent 1px)
+            linear-gradient(to right, #1a1a2e 1px, transparent 1px),
+            linear-gradient(to bottom, #1a1a2e 1px, transparent 1px)
           `,
-          backgroundSize: '64px 64px'
+          backgroundSize: '80px 80px'
         }}
       />
     </div>
