@@ -928,16 +928,7 @@ export default function CaseDetail() {
                       )}
 
                       <div className="flex items-center gap-3 flex-wrap">
-                        {!docSummaryLoading[doc.id] && doc.name.toLowerCase().endsWith('.pdf') && (
-                          <button
-                            onClick={e => { e.stopPropagation(); handleSummarizeDoc(doc) }}
-                            className="flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md transition-colors"
-                            style={{ color: '#6366F1', background: '#EEF2FF', border: '1px solid #C7D2FE' }}
-                          >
-                            <Sparkles size={10} />
-                            {docSummaries[doc.id] ? 'Regénérer' : 'Résumer'}
-                          </button>
-                        )}
+                        {/* Bouton Résumer désactivé temporairement — quota Gemini à configurer */}
                         {doc.extracted_date && (
                           <span className="flex items-center gap-1 text-[11px]" style={{ color: '#94A3B8' }}>
                             <Calendar size={11} />
