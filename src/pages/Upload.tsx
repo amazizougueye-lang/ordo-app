@@ -151,7 +151,11 @@ export default function Upload() {
     setProcessing(true)
     try {
       // 1. Upload file to Supabase Storage
-      const filePath = `${user.id}/${Date.now()}-${file.name}`
+      const safeName = file.name
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // enlève accents
+        .replace(/[^a-zA-Z0-9.\-_]/g, '_')               // remplace caractères spéciaux
+        .replace(/_+/g, '_')                              // évite les doubles underscores
+      const filePath = `${user.id}/${Date.now()}-${safeName}`
       const { error: uploadError } = await supabase.storage
         .from('documents')
         .upload(filePath, file)
