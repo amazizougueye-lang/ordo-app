@@ -159,9 +159,8 @@ export default function Dashboard() {
       if (filter === 'archived') return c.archived
       if (c.archived) return false
       if (filter !== 'all') {
-        const top = getMostUrgentDeadline(c)
-        const urgency = top?.urgency || 'stable'
-        if (urgency !== (filter as string)) return false
+        const all = getAllActiveDeadlines(c)
+        if (!all.some(d => d.urgency === (filter as string))) return false
       }
       return true
     })
