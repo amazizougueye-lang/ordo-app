@@ -5,7 +5,6 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import type { Case, CaseStatus, CaseDeadline, DeadlineUrgency } from '../types'
-import { computeEffectiveUrgency } from '../lib/utils'
 import { format, differenceInDays, isPast, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Search, Pin, Plus, ChevronDown, ChevronUp, Archive, Trash2, Check, MessageSquare } from 'lucide-react'
@@ -113,10 +112,7 @@ export default function Dashboard() {
       name: c.deadline_name || 'Principal',
       deadline: c.deadline,
       // Main deadline: manual only (no per-deadline thresholds on cases table)
-      urgency: computeEffectiveUrgency(
-        (c.deadline_urgency || 'stable') as DeadlineUrgency,
-        c.deadline
-      ),
+      urgency: ((c.deadline_urgency || 'stable') as DeadlineUrgency),
       monitor_days: null as null,
       urgent_days: null as null,
       completed: false,
@@ -127,13 +123,7 @@ export default function Dashboard() {
       .filter(d => !d.completed)
       .map(d => ({
         ...d,
-        // Apply threshold-based auto-escalation
-        urgency: computeEffectiveUrgency(
-          (d.urgency || 'stable') as DeadlineUrgency,
-          d.deadline,
-          d.monitor_days ?? null,
-          d.urgent_days ?? null
-        ),
+        urgency: ((d.urgency || 'stable') as DeadlineUrgency),
         isMain: false,
       }))
     return [...mainDl, ...extraDls].sort((a, b) =>

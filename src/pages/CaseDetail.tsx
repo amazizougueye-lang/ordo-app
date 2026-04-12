@@ -55,6 +55,13 @@ export default function CaseDetail() {
   const [savingDeadline, setSavingDeadline] = useState(false)
   const [editingDocType, setEditingDocType] = useState<string | null>(null)
   const [editingDeadlineUrgency, setEditingDeadlineUrgency] = useState<string | null>(null)
+  // Full editing for secondary deadlines
+  const [editingDeadlineId, setEditingDeadlineId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editDate, setEditDate] = useState('')
+  const [editUrgency, setEditUrgency] = useState<DeadlineUrgency>('stable')
+  const [editMonitorDays, setEditMonitorDays] = useState('7')
+  const [editUrgentDays, setEditUrgentDays] = useState('3')
 
   const CASE_TYPES = [
     { value: 'civil', label: 'Civil' },
@@ -175,10 +182,18 @@ export default function CaseDetail() {
     setSavingDeadline(false)
   }
 
-  const updateDeadlineUrgency = async (deadlineId: string, urgency: DeadlineUrgency) => {
-    await supabase.from('case_deadlines').update({ urgency }).eq('id', deadlineId)
-    setCaseDeadlines(prev => prev.map(d => d.id === deadlineId ? { ...d, urgency } : d))
-    setEditingDeadlineUrgency(null)
+  const updateDeadlineFull = async (deadlineId: string) => {
+    if (!editDate || !editName.trim()) return
+    const updates = {
+      name: editName.trim(),
+      deadline: editDate,
+      urgency: editUrgency,
+      monitor_days: parseInt(editMonitorDays) || 7,
+      urgent_days: parseInt(editUrgentDays) || 3,
+    }
+    await supabase.from('case_deadlines').update(updates).eq('id', deadlineId)
+    setCaseDeadlines(prev => prev.map(d => d.id === deadlineId ? { ...d, ...updates } : d))
+    setEditingDeadlineId(null)
   }
 
   const completeMainDeadline = async () => {
@@ -561,7 +576,7 @@ export default function CaseDetail() {
               const dl = deadlineLabel(cd.deadline)
               const uc = URGENCY_COLORS[(cd.urgency as DeadlineUrgency) || 'stable']
               const snoozed = isDeadlineSnoozed(cd)
-              const isEditingUrgency = editingDeadlineUrgency === cd.id
+              const isEditingFull = editingDeadlineId === cd.id
               return (
                 <div
                   key={cd.id}
@@ -593,12 +608,22 @@ export default function CaseDetail() {
                       {dl && !snoozed && (
                         <span className="text-[11px] font-medium" style={{ color: dl.color }}>{dl.text}</span>
                       )}
-                      {/* Toggle urgency edit */}
+                      {/* Toggle full edit */}
                       <button
-                        onClick={() => setEditingDeadlineUrgency(isEditingUrgency ? null : cd.id)}
+                        onClick={() => {
+                          if (isEditingFull) {
+                            setEditingDeadlineId(null)
+                          } else {
+                            setEditingDeadlineId(cd.id)
+                            setEditName(cd.name)
+                            setEditDate(cd.deadline?.slice(0, 10) || '')
+                            setEditUrgency((cd.urgency as DeadlineUrgency) || 'stable')
+                            setEditMonitorDays(String(cd.monitor_days ?? 7))
+                            setEditUrgentDays(String(cd.urgent_days ?? 3))
+                          }
+                        }}
                         className="text-[10px] font-medium px-1.5 py-0.5 rounded transition-all"
-                        style={{ color: '#94A3B8', border: '1px solid #E2E8F0', background: 'rgba(255,255,255,0.6)' }}
-                        title="Modifier l'urgence"
+                        style={{ color: isEditingFull ? '#3B82F6' : '#94A3B8', border: `1px solid ${isEditingFull ? '#BFDBFE' : '#E2E8F0'}`, background: isEditingFull ? '#EFF6FF' : 'rgba(255,255,255,0.6)' }}
                       >
                         Modifier
                       </button>
@@ -636,27 +661,78 @@ export default function CaseDetail() {
                       </button>
                     </div>
                   </div>
-                  {/* Urgency editor for this deadline */}
-                  {isEditingUrgency && (
-                    <div className="px-4 pb-3 flex gap-1">
-                      {(['stable', 'monitor', 'urgent'] as DeadlineUrgency[]).map(u => {
-                        const col = URGENCY_COLORS[u]
-                        const current = (cd.urgency as DeadlineUrgency) || 'stable'
-                        return (
-                          <button
-                            key={u}
-                            onClick={() => updateDeadlineUrgency(cd.id, u)}
-                            className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-all"
-                            style={{
-                              background: current === u ? col.bg : '#F9FAFB',
-                              color: current === u ? col.text : '#9CA3AF',
-                              border: `1px solid ${current === u ? col.dot : '#E5E7EB'}`,
-                            }}
-                          >
-                            {col.label}
-                          </button>
-                        )
-                      })}
+                  {/* Full edit form */}
+                  {isEditingFull && (
+                    <div className="px-4 pb-4 space-y-3" style={{ borderTop: '1px solid #F1F5F9', paddingTop: 12 }}>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          className="input-field"
+                          value={editName}
+                          onChange={e => setEditName(e.target.value)}
+                          placeholder="Nom du délai"
+                          style={{ flex: 1 }}
+                        />
+                        <input
+                          type="date"
+                          className="input-field"
+                          value={editDate}
+                          onChange={e => setEditDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px]" style={{ color: '#6B7280' }}>
+                        <span style={{ color: '#D97706' }}>Surveiller</span>
+                        <input
+                          type="number"
+                          className="input-field"
+                          style={{ width: 56, padding: '4px 8px' }}
+                          value={editMonitorDays}
+                          onChange={e => setEditMonitorDays(e.target.value)}
+                        />
+                        <span>j avant ·</span>
+                        <span style={{ color: '#DC2626' }}>Urgent</span>
+                        <input
+                          type="number"
+                          className="input-field"
+                          style={{ width: 56, padding: '4px 8px' }}
+                          value={editUrgentDays}
+                          onChange={e => setEditUrgentDays(e.target.value)}
+                        />
+                        <span>j avant</span>
+                      </div>
+                      <div className="flex gap-1">
+                        {(['stable', 'monitor', 'urgent'] as DeadlineUrgency[]).map(u => {
+                          const col = URGENCY_COLORS[u]
+                          return (
+                            <button
+                              key={u}
+                              onClick={() => setEditUrgency(u)}
+                              className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-all"
+                              style={{
+                                background: editUrgency === u ? col.bg : '#F9FAFB',
+                                color: editUrgency === u ? col.text : '#9CA3AF',
+                                border: `1px solid ${editUrgency === u ? col.dot : '#E5E7EB'}`,
+                              }}
+                            >
+                              {col.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => updateDeadlineFull(cd.id)}
+                          className="btn-primary text-[12px] py-1.5 px-3 gap-1.5"
+                        >
+                          <CheckCircle size={12} /> Sauvegarder
+                        </button>
+                        <button
+                          onClick={() => setEditingDeadlineId(null)}
+                          className="btn-ghost text-[12px] py-1.5 px-3"
+                        >
+                          Annuler
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

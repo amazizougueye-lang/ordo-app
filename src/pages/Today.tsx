@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { computeEffectiveUrgency } from '../lib/utils'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import type { Case, CaseDeadline, DeadlineUrgency } from '../types'
@@ -58,10 +57,7 @@ export default function Today() {
         id: null,
         name: c.deadline_name || 'Délai principal',
         deadline: c.deadline,
-        urgency: computeEffectiveUrgency(
-          (c.deadline_urgency || 'stable') as DeadlineUrgency,
-          c.deadline
-        ),
+        urgency: ((c.deadline_urgency || 'stable') as DeadlineUrgency),
         isMain: true,
       })
     }
@@ -73,12 +69,7 @@ export default function Today() {
       id: d.id,
       name: d.name,
       deadline: d.deadline,
-      urgency: computeEffectiveUrgency(
-        (d.urgency || 'stable') as DeadlineUrgency,
-        d.deadline,
-        d.monitor_days ?? null,
-        d.urgent_days ?? null
-      ),
+      urgency: ((d.urgency || 'stable') as DeadlineUrgency),
       isMain: false,
     }))
 
@@ -99,10 +90,7 @@ export default function Today() {
         id: null,
         name: c.deadline_name || 'Délai principal',
         deadline: c.deadline,
-        urgency: computeEffectiveUrgency(
-          (c.deadline_urgency || 'stable') as DeadlineUrgency,
-          c.deadline
-        ),
+        urgency: ((c.deadline_urgency || 'stable') as DeadlineUrgency),
         isMain: true,
       })
     }
@@ -114,12 +102,7 @@ export default function Today() {
       id: d.id,
       name: d.name,
       deadline: d.deadline,
-      urgency: computeEffectiveUrgency(
-        (d.urgency || 'stable') as DeadlineUrgency,
-        d.deadline,
-        d.monitor_days ?? null,
-        d.urgent_days ?? null
-      ),
+      urgency: ((d.urgency || 'stable') as DeadlineUrgency),
       isMain: false,
     }))
 

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { computeEffectiveUrgency } from '../lib/utils'
 import { useAuth } from '../contexts/AuthContext'
 import { AppLayout } from '../components/AppLayout'
 import type { Case, CaseDeadline, DeadlineUrgency } from '../types'
@@ -48,12 +47,7 @@ export default function Calendar() {
         .map(d => ({
           ...d,
           case_name: casesMap.get(d.case_id)?.name || 'Unknown',
-          urgency: computeEffectiveUrgency(
-            ((d.urgency as DeadlineUrgency) || 'stable'),
-            d.deadline,
-            d.monitor_days ?? null,
-            d.urgent_days ?? null
-          ),
+          urgency: ((d.urgency as DeadlineUrgency) || 'stable'),
         }))
       setDeadlines(deadlinesList)
       setLoading(false)
@@ -80,7 +74,7 @@ export default function Calendar() {
         case_name: c.name,
         deadline: c.deadline!,
         deadline_name: c.deadline_name,
-        urgency: computeEffectiveUrgency(((c.deadline_urgency as DeadlineUrgency) || 'stable'), c.deadline!),
+        urgency: ((c.deadline_urgency as DeadlineUrgency) || 'stable'),
       }))
     return [...principalDL, ...additionalDL]
   }
