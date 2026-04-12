@@ -38,7 +38,7 @@ Structure ta réponse ainsi :
 Sois concis et factuel. N'invente rien qui ne soit pas dans le document.`
 
     const geminiRes = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
       {
         method: 'POST',
         headers: {
