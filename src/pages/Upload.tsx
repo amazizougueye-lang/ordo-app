@@ -336,12 +336,6 @@ export default function Upload() {
                 <input className="input-field" placeholder="Ex: Jean Tremblay" value={clientName} onChange={e => setClientName(e.target.value)} required />
               </div>
               <div>
-                <label className="field-label">
-                  Numéro de dossier <span style={{ color: '#CBD5E1', fontWeight: 400 }}>(optionnel)</span>
-                </label>
-                <input className="input-field" placeholder="Ex: 2024-0042" />
-              </div>
-              <div>
                 <label className="field-label">Type de dossier</label>
                 <div className="relative">
                   <select className="input-field appearance-none pr-8" value={caseType} onChange={e => setCaseType(e.target.value)}>
