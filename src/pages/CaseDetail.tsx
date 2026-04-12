@@ -11,10 +11,9 @@ import { fr } from 'date-fns/locale'
 import {
   ArrowLeft, Pin, FileText, Calendar, Trash2,
   Loader2, CheckCircle, ChevronDown, Plus, Download, Archive, ArchiveRestore,
-  MessageSquare, Send, Clock, Check, BellOff, Tag, Sparkles, Save
+  MessageSquare, Send, Clock, Check, BellOff, Tag, Save
 } from 'lucide-react'
 import { DOC_HIERARCHY, getDocTypeDisplay, formatDocType, type DocCategory } from '../lib/docTypes'
-import { summarizeDocument } from '../lib/geminiService'
 
 const URGENCY_COLORS: Record<DeadlineUrgency, { bg: string; text: string; label: string; dot: string }> = {
   urgent:  { bg: '#FEF2F2', text: '#DC2626', label: 'Urgent',        dot: '#DC2626' },
@@ -297,22 +296,6 @@ export default function CaseDetail() {
       URL.revokeObjectURL(url)
     } catch { toast.error('Erreur téléchargement') }
     setDownloadingDoc(null)
-  }
-
-  const handleSummarizeDoc = async (doc: Document) => {
-    setDocSummaryLoading(prev => ({ ...prev, [doc.id]: true }))
-    try {
-      const { data: signedData } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(doc.storage_path, 300)
-      if (!signedData?.signedUrl) throw new Error('Impossible d\'accéder au document')
-      const summary = await summarizeDocument(signedData.signedUrl, doc.name)
-      setDocSummaries(prev => ({ ...prev, [doc.id]: summary }))
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la génération du résumé')
-    } finally {
-      setDocSummaryLoading(prev => ({ ...prev, [doc.id]: false }))
-    }
   }
 
   const saveSummary = async (docId: string) => {
