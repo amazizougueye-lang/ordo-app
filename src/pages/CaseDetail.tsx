@@ -671,13 +671,14 @@ export default function CaseDetail() {
                           value={editName}
                           onChange={e => setEditName(e.target.value)}
                           placeholder="Nom du délai"
-                          style={{ flex: 1 }}
+                          style={{ flex: 1, minWidth: 0 }}
                         />
                         <input
                           type="date"
                           className="input-field"
                           value={editDate}
                           onChange={e => setEditDate(e.target.value)}
+                          style={{ width: 150, flexShrink: 0 }}
                         />
                       </div>
                       <div className="flex items-center gap-2 text-[11px]" style={{ color: '#6B7280' }}>
