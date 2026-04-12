@@ -441,7 +441,13 @@ export default function CaseDetail() {
                     return (
                       <button
                         key={u}
-                        onClick={() => setDeadlineUrgency(u)}
+                        onClick={async () => {
+                          setDeadlineUrgency(u)
+                          if (c?.id && deadline) {
+                            await supabase.from('cases').update({ deadline_urgency: u }).eq('id', c.id)
+                            setCase(prev => prev ? { ...prev, deadline_urgency: u } : prev)
+                          }
+                        }}
                         className="text-[11px] font-medium px-2.5 py-1 rounded-md transition-all"
                         style={{
                           background: deadlineUrgency === u ? col.bg : '#F9FAFB',

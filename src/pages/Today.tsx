@@ -175,8 +175,17 @@ export default function Today() {
     return { text: format(d, 'd MMM', { locale: fr }), color: '#94A3B8' }
   }
 
-  const CaseRow = ({ c, nearest, allDeadlines }: { c: Case; nearest: NearestDeadline; allDeadlines: NearestDeadline[] }) => {
+  const CaseRow = ({ c, nearest, allDeadlines, sectionUrgency }: {
+    c: Case
+    nearest: NearestDeadline
+    allDeadlines: NearestDeadline[]
+    sectionUrgency: DeadlineUrgency | null
+  }) => {
     const uc = URGENCY_COLORS[nearest.urgency]
+    // Filter to only the deadlines relevant to this section (null = show all, e.g. "Cette semaine")
+    const visibleDeadlines = sectionUrgency
+      ? allDeadlines.filter(dl => dl.urgency === sectionUrgency)
+      : allDeadlines
 
     return (
       <div className="rounded-lg overflow-hidden" style={{ border: '1px solid #E2E8F0', background: '#FFFFFF' }}>
@@ -196,25 +205,25 @@ export default function Today() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-3">
-            {allDeadlines.length > 1 && (
+            {visibleDeadlines.length > 1 && (
               <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: '#F1F5F9', color: '#64748B' }}>
-                {allDeadlines.length} échéances
+                {visibleDeadlines.length} échéances
               </span>
             )}
             <ArrowRight size={14} style={{ color: '#CBD5E1' }} />
           </div>
         </Link>
 
-        {/* Deadline rows */}
+        {/* Deadline rows — only those matching sectionUrgency */}
         <div style={{ borderTop: '1px solid #F1F5F9' }}>
-          {allDeadlines.map((dl, idx) => {
+          {visibleDeadlines.map((dl, idx) => {
             const dlUC = URGENCY_COLORS[dl.urgency]
             const dlLabel = deadlineLabel(dl.deadline)
             return (
               <div
                 key={dl.id || `main-${idx}`}
                 className="flex items-center justify-between px-4 py-2.5"
-                style={{ borderBottom: idx < allDeadlines.length - 1 ? '1px solid #F8FAFC' : 'none' }}
+                style={{ borderBottom: idx < visibleDeadlines.length - 1 ? '1px solid #F8FAFC' : 'none' }}
               >
                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: dlUC.dot, flexShrink: 0 }} />
@@ -248,10 +257,12 @@ export default function Today() {
     title,
     items,
     color,
+    sectionUrgency,
   }: {
     title: string
     items: Array<{ c: Case; nearest: NearestDeadline; allDeadlines: NearestDeadline[] }>
     color: string
+    sectionUrgency: DeadlineUrgency
   }) => {
     if (items.length === 0) return null
     return (
@@ -259,7 +270,7 @@ export default function Today() {
         <p className="section-label mb-3" style={{ color }}>{title}</p>
         <div className="space-y-2">
           {items.map(({ c, nearest, allDeadlines }) => (
-            <CaseRow key={c.id} c={c} nearest={nearest} allDeadlines={allDeadlines} />
+            <CaseRow key={c.id} c={c} nearest={nearest} allDeadlines={allDeadlines} sectionUrgency={sectionUrgency} />
           ))}
         </div>
       </div>
@@ -294,9 +305,9 @@ export default function Today() {
               </div>
             ) : (
               <div className="space-y-8 mb-12">
-                <Section title="🔴 Urgent" items={urgentCases} color="#DC2626" />
-                <Section title="🟡 À surveiller" items={monitorCases} color="#D97706" />
-                <Section title="🟢 Stable" items={stableCases} color="#10B981" />
+                <Section title="🔴 Urgent" items={urgentCases} color="#DC2626" sectionUrgency="urgent" />
+                <Section title="🟡 À surveiller" items={monitorCases} color="#D97706" sectionUrgency="monitor" />
+                <Section title="🟢 Stable" items={stableCases} color="#10B981" sectionUrgency="stable" />
               </div>
             )}
 
@@ -309,7 +320,7 @@ export default function Today() {
                 </div>
                 <div className="space-y-2">
                   {weekCases.map(({ c, nearest, allDeadlines }) => (
-                    <CaseRow key={`week-${c.id}`} c={c} nearest={nearest} allDeadlines={allDeadlines} />
+                    <CaseRow key={`week-${c.id}`} c={c} nearest={nearest} allDeadlines={allDeadlines} sectionUrgency={null} />
                   ))}
                 </div>
               </div>

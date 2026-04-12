@@ -450,7 +450,9 @@ export default function Dashboard() {
                         {allActive.length === 0 ? (
                           <p className="px-8 py-3 text-[12px]" style={{ color: '#9CA3AF' }}>Aucune échéance active</p>
                         ) : (
-                          allActive.map(dl => {
+                          allActive.filter(dl =>
+                            filter === 'all' || filter === 'archived' ? true : dl.urgency === filter
+                          ).map(dl => {
                             const urg = URGENCY_COLORS[dl.urgency || 'stable']
                             const dlDate = deadlineInfo(dl.deadline)
                             return (
