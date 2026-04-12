@@ -11,9 +11,10 @@ import { fr } from 'date-fns/locale'
 import {
   ArrowLeft, Pin, FileText, Calendar, Trash2,
   Loader2, CheckCircle, ChevronDown, Plus, Download, Archive, ArchiveRestore,
-  MessageSquare, Send, Clock, Check, BellOff, Tag
+  MessageSquare, Send, Clock, Check, BellOff, Tag, Sparkles, Save
 } from 'lucide-react'
 import { DOC_HIERARCHY, getDocTypeDisplay, formatDocType, type DocCategory } from '../lib/docTypes'
+import { summarizeDocument } from '../lib/geminiService'
 
 const URGENCY_COLORS: Record<DeadlineUrgency, { bg: string; text: string; label: string; dot: string }> = {
   urgent:  { bg: '#FEF2F2', text: '#DC2626', label: 'Urgent',        dot: '#DC2626' },
@@ -55,6 +56,10 @@ export default function CaseDetail() {
   const [savingDeadline, setSavingDeadline] = useState(false)
   const [editingDocType, setEditingDocType] = useState<string | null>(null)
   const [editingDeadlineUrgency, setEditingDeadlineUrgency] = useState<string | null>(null)
+
+  // Résumé Gemini par document
+  const [docSummaries, setDocSummaries] = useState<Record<string, string>>({})
+  const [docSummaryLoading, setDocSummaryLoading] = useState<Record<string, boolean>>({})
 
   const CASE_TYPES = [
     { value: 'civil', label: 'Civil' },
@@ -292,6 +297,42 @@ export default function CaseDetail() {
       URL.revokeObjectURL(url)
     } catch { toast.error('Erreur téléchargement') }
     setDownloadingDoc(null)
+  }
+
+  const handleSummarizeDoc = async (doc: Document) => {
+    setDocSummaryLoading(prev => ({ ...prev, [doc.id]: true }))
+    try {
+      const { data: signedData } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(doc.storage_path, 300)
+      if (!signedData?.signedUrl) throw new Error('Impossible d\'accéder au document')
+      const summary = await summarizeDocument(signedData.signedUrl, doc.name)
+      setDocSummaries(prev => ({ ...prev, [doc.id]: summary }))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la génération du résumé')
+    } finally {
+      setDocSummaryLoading(prev => ({ ...prev, [doc.id]: false }))
+    }
+  }
+
+  const saveSummary = async (docId: string) => {
+    const summary = docSummaries[docId]
+    if (!summary) return
+    const { error } = await supabase.from('documents').update({ summary }).eq('id', docId)
+    if (error) { toast.error('Erreur lors de la sauvegarde'); return }
+    setDocs(prev => prev.map(d => d.id === docId ? { ...d, summary } : d))
+    setDocSummaries(prev => { const n = { ...prev }; delete n[docId]; return n })
+    toast.success('Résumé sauvegardé dans le dossier')
+  }
+
+  const downloadSummary = (docName: string, summary: string) => {
+    const blob = new Blob([summary], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `résumé-${docName.replace(/\.[^.]+$/, '')}.txt`
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   if (loading) return (
@@ -847,10 +888,56 @@ export default function CaseDetail() {
                           )
                         })()}
                       </div>
-                      {doc.summary && (
+                      {doc.summary && !docSummaries[doc.id] && (
                         <p className="text-[12px] mb-1 leading-relaxed" style={{ color: '#475569' }}>{doc.summary}</p>
                       )}
-                      <div className="flex items-center gap-4">
+
+                      {/* Résumé Gemini généré à la demande */}
+                      {docSummaryLoading[doc.id] && (
+                        <div className="flex items-center gap-2 mt-1 mb-1" onClick={e => e.stopPropagation()}>
+                          <Loader2 size={12} className="animate-spin" style={{ color: '#6366F1' }} />
+                          <span className="text-[12px]" style={{ color: '#6366F1' }}>Analyse en cours…</span>
+                        </div>
+                      )}
+                      {docSummaries[doc.id] && (
+                        <div
+                          className="mt-2 mb-2 p-3 rounded-lg text-[12px] leading-relaxed whitespace-pre-wrap"
+                          style={{ background: '#F0F4FF', color: '#334155', border: '1px solid #C7D2FE' }}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          {docSummaries[doc.id]}
+                          <div className="flex items-center gap-2 mt-3">
+                            <button
+                              onClick={() => saveSummary(doc.id)}
+                              className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-md font-medium transition-colors"
+                              style={{ background: '#6366F1', color: 'white' }}
+                            >
+                              <Save size={10} />
+                              Sauvegarder
+                            </button>
+                            <button
+                              onClick={() => downloadSummary(doc.name, docSummaries[doc.id])}
+                              className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-md font-medium transition-colors"
+                              style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #E2E8F0' }}
+                            >
+                              <Download size={10} />
+                              Télécharger .txt
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {!docSummaryLoading[doc.id] && doc.name.toLowerCase().endsWith('.pdf') && (
+                          <button
+                            onClick={e => { e.stopPropagation(); handleSummarizeDoc(doc) }}
+                            className="flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md transition-colors"
+                            style={{ color: '#6366F1', background: '#EEF2FF', border: '1px solid #C7D2FE' }}
+                          >
+                            <Sparkles size={10} />
+                            {docSummaries[doc.id] ? 'Regénérer' : 'Résumer'}
+                          </button>
+                        )}
                         {doc.extracted_date && (
                           <span className="flex items-center gap-1 text-[11px]" style={{ color: '#94A3B8' }}>
                             <Calendar size={11} />
